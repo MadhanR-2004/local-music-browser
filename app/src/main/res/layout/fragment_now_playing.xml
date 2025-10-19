@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/now_playing_gradient">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="320dp"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="16dp"
+            android:layout_marginBottom="16dp"
+            android:backgroundTint="@color/surface">
+            <ImageView
+                android:id="@+id/np_art"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:src="@mipmap/ic_launcher" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:id="@+id/np_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Title"
+            style="@style/HeadlineLarge"
+            android:textColor="@color/on_surface"
+            android:paddingTop="12dp"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/np_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Artist • Album"
+            style="@style/TitleLarge"
+            android:textColor="@color/on_surface"
+            android:paddingTop="4dp"
+            android:gravity="center" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:paddingTop="8dp">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/np_like"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:icon="@android:drawable/btn_star_big_off"
+                android:backgroundTint="@color/primary"
+                android:stateListAnimator="@animator/bounce_animator"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                android:elevation="8dp"
+                android:contentDescription="Like" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingTop="16dp">
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/np_prev"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:backgroundTint="@color/primary"
+                android:icon="@android:drawable/ic_media_previous"
+                android:stateListAnimator="@animator/bounce_animator"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                android:elevation="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/np_play_pause"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:backgroundTint="@color/primary"
+                android:icon="@android:drawable/ic_media_play"
+                android:stateListAnimator="@animator/bounce_animator"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                android:elevation="12dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/np_next"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:backgroundTint="@color/primary"
+                android:icon="@android:drawable/ic_media_next"
+                android:stateListAnimator="@animator/bounce_animator"
+                app:iconGravity="textStart"
+                app:iconPadding="8dp"
+                android:elevation="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
+
+
