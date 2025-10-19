@@ -34,17 +34,11 @@ public final class MediaStoreScanner {
                 MediaStore.Audio.Media.DATE_ADDED
         };
 
-        // Get selected folder URIs from SharedPreferences
-        java.util.Set<String> folderUris = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                .getStringSet("music_folder_uris", new java.util.HashSet<>());
-        List<String> folderPaths = new ArrayList<>();
-        for (String uriStr : folderUris) {
-            try {
-                Uri folderUri = Uri.parse(uriStr);
-                String path = getFolderPath(context, folderUri);
-                if (path != null) folderPaths.add(path);
-            } catch (Exception ignored) {}
-        }
+        // Get selected folder paths from SharedPreferences
+        java.util.Set<String> folderPaths = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                .getStringSet("music_folder_paths", new java.util.HashSet<>());
+        
+        android.util.Log.d("MediaStoreScanner", "Folder paths filter: " + folderPaths);
 
         try (Cursor cursor = resolver.query(uri, projection, selection, null, null)) {
             if (cursor == null) return songs;
@@ -56,9 +50,18 @@ public final class MediaStoreScanner {
             int trackIdx = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK);
             int yearIdx = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR);
             int dateAddedIdx = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED);
+            int totalFiles = cursor.getCount();
+            android.util.Log.d("MediaStoreScanner", "Found " + totalFiles + " music files in MediaStore");
+            
+            int processedCount = 0;
+            int filteredCount = 0;
+            
             while (cursor.moveToNext()) {
+                processedCount++;
                 String songPath = safe(cursor.getString(dataIdx));
-                if (isInSelectedFolders(songPath, folderPaths)) {
+                
+                // If no folders selected, include all songs. Otherwise, filter by selected folders.
+                if (folderPaths.isEmpty() || isInSelectedFolders(songPath, new ArrayList<>(folderPaths))) {
                     Song s = new Song();
                     s.title = safe(cursor.getString(titleIdx));
                     s.artist = safe(cursor.getString(artistIdx));
@@ -69,8 +72,11 @@ public final class MediaStoreScanner {
                     s.year = cursor.getInt(yearIdx);
                     s.dateAddedEpochMs = cursor.getLong(dateAddedIdx) * 1000L;
                     songs.add(s);
+                    filteredCount++;
                 }
             }
+            
+            android.util.Log.d("MediaStoreScanner", "Processed " + processedCount + " files, filtered to " + filteredCount + " songs");
         }
         return songs;
     }
@@ -108,10 +114,20 @@ public final class MediaStoreScanner {
     }
 
     public static void persist(@NonNull Context context, @NonNull List<Song> songs) {
-        if (songs.isEmpty()) return;
-        AppDatabase db = DatabaseProvider.get(context);
-        db.songDao().insertAll(songs);
-        // FTS content table auto-updates via contentEntity, but to be safe we can reinsert or rebuild if needed.
+        if (songs.isEmpty()) {
+            android.util.Log.w("MediaStoreScanner", "No songs to persist");
+            return;
+        }
+        
+        android.util.Log.d("MediaStoreScanner", "Persisting " + songs.size() + " songs to database...");
+        
+        try {
+            AppDatabase db = DatabaseProvider.get(context);
+            db.songDao().insertAll(songs);
+            android.util.Log.d("MediaStoreScanner", "Successfully persisted " + songs.size() + " songs to database");
+        } catch (Exception e) {
+            android.util.Log.e("MediaStoreScanner", "Error persisting songs to database", e);
+        }
     }
 
     private static String safe(String v) {
