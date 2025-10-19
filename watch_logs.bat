@@ -12,3 +12,4 @@ REM Watch relevant logs
 adb logcat -v time | findstr /I "PathBasedScanner InitialLoadInitializer HomeViewModel MusicPlayerViewModel Onboarding"
 
 
+

@@ -31,11 +31,6 @@
             </intent-filter>
         </activity>
 
-        <!-- OLD: Legacy Java/XML MainActivity (kept for reference) -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MyApplication" />
 
         <activity
             android:name=".ui.onboarding.FolderSelectionActivity"
