@@ -315,36 +315,55 @@ class MusicPlayerService : Service() {
     }
     
     fun playNext() {
-        if (playlist.isEmpty()) return
-        
-        // Clean up the queue sections before moving to next song
-        cleanupPlayedSong()
-        
-        val oldIndex = currentIndex
-        currentIndex = (currentIndex + 1) % playlist.size
-        
-        Log.d(TAG, "playNext: $oldIndex -> $currentIndex (playlist size: ${playlist.size})")
-        playSong(playlist[currentIndex], updateIndex = false)
-    }
-    
-    fun playPrevious() {
-        if (playlist.isEmpty()) {
-            Log.w(TAG, "playPrevious: Playlist is empty!")
+        // Check if we have Play Next songs first
+        if (playNextQueue.isNotEmpty()) {
+            val song = playNextQueue.removeAt(0)
+            Log.d(TAG, "playNext: Playing from Play Next queue: ${song.title}")
+            playSong(song, updateIndex = false)
             return
         }
         
-        val oldIndex = currentIndex
+        // Check if we have Regular Queue songs
+        if (regularQueue.isNotEmpty()) {
+            val song = regularQueue.removeAt(0)
+            Log.d(TAG, "playNext: Playing from Regular Queue: ${song.title}")
+            playSong(song, updateIndex = false)
+            return
+        }
+        
+        // No queues left, follow circular navigation in original context
+        if (originalContextPlaylist.isEmpty()) return
+        
+        lastPlayedContextIndex = (lastPlayedContextIndex + 1) % originalContextPlaylist.size
+        val song = originalContextPlaylist[lastPlayedContextIndex]
+        
+        Log.d(TAG, "playNext: Following circular navigation - context index: $lastPlayedContextIndex")
+        playSong(song, updateIndex = false)
+    }
+    
+    fun playPrevious() {
+        if (originalContextPlaylist.isEmpty()) {
+            Log.w(TAG, "playPrevious: Original context is empty!")
+            return
+        }
+        
+        val oldIndex = lastPlayedContextIndex
         val oldSong = currentSong?.title ?: "null"
         
-        // Simple circular navigation: go to previous song, wrap around to last if at beginning
-        currentIndex = if (currentIndex - 1 < 0) playlist.size - 1 else currentIndex - 1
+        // Simple circular navigation in original context only
+        lastPlayedContextIndex = if (lastPlayedContextIndex - 1 < 0) {
+            originalContextPlaylist.size - 1
+        } else {
+            lastPlayedContextIndex - 1
+        }
         
-        val newSong = playlist[currentIndex].title
+        val newSong = originalContextPlaylist[lastPlayedContextIndex].title
         
-        Log.d(TAG, "playPrevious: $oldIndex -> $currentIndex (playlist size: ${playlist.size})")
+        Log.d(TAG, "playPrevious: context index $oldIndex -> $lastPlayedContextIndex")
         Log.d(TAG, "playPrevious: '$oldSong' -> '$newSong'")
         
-        playSong(playlist[currentIndex], updateIndex = false)
+        // Play the song from original context
+        playSong(originalContextPlaylist[lastPlayedContextIndex], updateIndex = false)
     }
     
     private fun shouldLoopToContextEnd(): Boolean {
@@ -483,31 +502,47 @@ class MusicPlayerService : Service() {
     
     private fun rebuildPlaylist() {
         val current = currentSong
+        val oldIndex = currentIndex
         playlist.clear()
         
-        // Add current song first
+        // Build playlist in the correct order for complex queue management
+        // 1. Add all songs from original context in order
+        playlist.addAll(originalContextPlaylist)
+        
+        // 2. Insert Play Next queue songs after current song position
         if (current != null) {
-            playlist.add(current)
+            val currentSongIndex = playlist.indexOfFirst { it.id == current.id }
+            if (currentSongIndex >= 0) {
+                // Insert Play Next songs after current song
+                playlist.addAll(currentSongIndex + 1, playNextQueue)
+            }
         }
         
-        // Add Play Next queue (high priority)
-        playlist.addAll(playNextQueue)
-        
-        // Add Regular Queue (medium priority)
-        playlist.addAll(regularQueue)
-        
-        // Add remaining original context (low priority)
-        // Use the tracked context index to continue from where we left off
-        val remainingContext = if (lastPlayedContextIndex < originalContextPlaylist.size) {
-            originalContextPlaylist.drop(lastPlayedContextIndex)
+        // 3. Insert Regular Queue songs after Play Next songs
+        // Find where Play Next songs end and insert Regular Queue there
+        val playNextEndIndex = if (current != null) {
+            val currentSongIndex = playlist.indexOfFirst { it.id == current.id }
+            if (currentSongIndex >= 0) {
+                currentSongIndex + 1 + playNextQueue.size
+            } else {
+                playlist.size
+            }
         } else {
-            // If we've reached the end, start from beginning (for repeat all)
-            originalContextPlaylist
+            playlist.size
         }
-        playlist.addAll(remainingContext)
+        playlist.addAll(playNextEndIndex, regularQueue)
         
-        currentIndex = 0 // Current song is always at index 0
-        Log.d(TAG, "Playlist rebuilt: current + ${playNextQueue.size} play next + ${regularQueue.size} regular + ${remainingContext.size} context")
+        // 4. Update currentIndex to the actual position of current song
+        if (current != null) {
+            currentIndex = playlist.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
+        } else {
+            currentIndex = 0
+        }
+        
+        Log.d(TAG, "Playlist rebuilt: ${playlist.size} total songs, current at index $currentIndex (was $oldIndex)")
+        Log.d(TAG, "Playlist order: ${playlist.mapIndexed { index, song -> "$index: ${song.title}" }}")
+        Log.d(TAG, "Play Next queue: ${playNextQueue.map { it.title }}")
+        Log.d(TAG, "Regular queue: ${regularQueue.map { it.title }}")
     }
     
     fun getPlayNextQueue(): List<Song> = playNextQueue.toList()
