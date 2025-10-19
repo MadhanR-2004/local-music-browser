@@ -188,7 +188,7 @@ class MusicPlayerService : Service() {
     private fun loopToContextStart() {
         // Reset context index to start from beginning
         lastPlayedContextIndex = 0
-        Log.d(TAG, "Looped back to context start")
+        Log.d(TAG, "Looped back to context start - currentIndex: $currentIndex, playlist size: ${playlist.size}")
     }
     
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
@@ -256,15 +256,22 @@ class MusicPlayerService : Service() {
     fun getShuffleEnabled(): Boolean = isShuffleEnabled
     fun getRepeatMode(): Int = repeatMode
     
-    fun playSong(song: Song) {
+    fun playSong(song: Song, updateIndex: Boolean = true) {
+        val oldIndex = currentIndex
         currentSong = song
-        // Find index by song ID (not object reference)
-        val foundIndex = playlist.indexOfFirst { it.id == song.id }
-        if (foundIndex >= 0) {
-            currentIndex = foundIndex
-            Log.d(TAG, "Playing song: ${song.title} (id=${song.id}) at index $currentIndex of ${playlist.size}")
+        
+        if (updateIndex) {
+            // Find index by song ID (not object reference)
+            val foundIndex = playlist.indexOfFirst { it.id == song.id }
+            if (foundIndex >= 0) {
+                currentIndex = foundIndex
+                Log.d(TAG, "playSong: Found song at index $foundIndex (was $oldIndex): ${song.title} (id=${song.id})")
+            } else {
+                Log.w(TAG, "playSong: Song not found in playlist: ${song.title} (id=${song.id}), keeping current index: $currentIndex")
+                Log.w(TAG, "playSong: Available song IDs: ${playlist.map { it.id }}")
+            }
         } else {
-            Log.w(TAG, "Song not found in playlist: ${song.title} (id=${song.id}), keeping current index: $currentIndex")
+            Log.d(TAG, "playSong: Playing song at current index $currentIndex: ${song.title} (id=${song.id})")
         }
         
         Log.d(TAG, "Playing song: ${song.title} from ${song.path}")
@@ -313,14 +320,42 @@ class MusicPlayerService : Service() {
         // Clean up the queue sections before moving to next song
         cleanupPlayedSong()
         
+        val oldIndex = currentIndex
         currentIndex = (currentIndex + 1) % playlist.size
-        playSong(playlist[currentIndex])
+        
+        Log.d(TAG, "playNext: $oldIndex -> $currentIndex (playlist size: ${playlist.size})")
+        playSong(playlist[currentIndex], updateIndex = false)
     }
     
     fun playPrevious() {
-        if (playlist.isEmpty()) return
+        if (playlist.isEmpty()) {
+            Log.w(TAG, "playPrevious: Playlist is empty!")
+            return
+        }
+        
+        val oldIndex = currentIndex
+        val oldSong = currentSong?.title ?: "null"
+        
+        // Simple circular navigation: go to previous song, wrap around to last if at beginning
         currentIndex = if (currentIndex - 1 < 0) playlist.size - 1 else currentIndex - 1
-        playSong(playlist[currentIndex])
+        
+        val newSong = playlist[currentIndex].title
+        
+        Log.d(TAG, "playPrevious: $oldIndex -> $currentIndex (playlist size: ${playlist.size})")
+        Log.d(TAG, "playPrevious: '$oldSong' -> '$newSong'")
+        
+        playSong(playlist[currentIndex], updateIndex = false)
+    }
+    
+    private fun shouldLoopToContextEnd(): Boolean {
+        // Loop to context end if we have context songs and we're at the very beginning
+        return originalContextPlaylist.isNotEmpty() && lastPlayedContextIndex > 0
+    }
+    
+    private fun loopToContextEnd() {
+        // Reset context index to the last song in the original context
+        lastPlayedContextIndex = originalContextPlaylist.size - 1
+        Log.d(TAG, "Looped back to context end")
     }
     
     fun seekTo(positionMs: Long) {

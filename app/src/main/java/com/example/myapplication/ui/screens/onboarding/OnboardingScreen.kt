@@ -502,7 +502,7 @@ fun FolderSelectionStep(
                         android.util.Log.d("Onboarding", "Starting music scan of ${selectedPaths.size} folders...")
                         com.example.myapplication.InitialLoadInitializer.runAsync(
                             context.applicationContext as android.app.Application,
-                            true // Force rescan
+                            //true
                         )
                         
                         // Wait for scan to complete (give it a moment)
