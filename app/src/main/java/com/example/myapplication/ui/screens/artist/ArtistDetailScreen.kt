@@ -51,6 +51,22 @@ fun ArtistDetailScreen(
         }
     }
     
+    // Create sorted songs for consistent queue ordering
+    val sortedSongs = remember(songs) {
+        songs.sortedWith(compareBy({ it.album }, { it.trackNumber }))
+    }
+    
+    // Update queue when songs change (e.g., after rescan) while music is playing
+    LaunchedEffect(sortedSongs) {
+        if (viewModel.currentSong != null && sortedSongs.isNotEmpty()) {
+            // Check if current song is from this artist
+            val currentSong = viewModel.currentSong
+            if (currentSong?.artist == artistName) {
+                viewModel.updateQueueWithSortedList(sortedSongs)
+            }
+        }
+    }
+    
     val albumCount = songs.map { it.album }.distinct().size
     val songCount = songs.size
     
@@ -125,8 +141,8 @@ fun ArtistDetailScreen(
                 ) {
                     com.example.myapplication.ui.components.InteractiveButton(
                         onClick = { 
-                            if (songs.isNotEmpty()) {
-                                viewModel.playSong(songs.first(), customPlaylist = songs)
+                            if (sortedSongs.isNotEmpty()) {
+                                viewModel.playSong(sortedSongs.first(), customPlaylist = sortedSongs)
                             }
                         },
                         modifier = Modifier.weight(1f),
@@ -139,8 +155,8 @@ fun ArtistDetailScreen(
                     
                     com.example.myapplication.ui.components.InteractiveButton(
                         onClick = { 
-                            if (songs.isNotEmpty()) {
-                                val shuffled = songs.shuffled()
+                            if (sortedSongs.isNotEmpty()) {
+                                val shuffled = sortedSongs.shuffled()
                                 viewModel.playSong(shuffled.first(), customPlaylist = shuffled)
                             }
                         },
@@ -183,10 +199,10 @@ fun ArtistDetailScreen(
                     }
                 }
             } else {
-                items(songs) { song ->
+                items(sortedSongs) { song ->
                     com.example.myapplication.ui.screens.library.SongListItem(
                         song = song,
-                        onClick = { viewModel.playSong(song, customPlaylist = songs) },
+                        onClick = { viewModel.playSong(song, customPlaylist = sortedSongs) },
                         navController = navController,
                         musicPlayerViewModel = viewModel
                     )

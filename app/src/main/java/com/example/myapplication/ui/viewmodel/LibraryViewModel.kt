@@ -45,7 +45,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     
     // Sort order
-    private val _sortOrder = MutableStateFlow(SortOrder.ALPHABETICAL)
+    private val _sortOrder = MutableStateFlow(SortOrder.TITLE)
     val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
     
     init {
@@ -98,8 +98,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     
     private fun sortSongs(songs: List<Song>, order: SortOrder): List<Song> {
         return when (order) {
-            SortOrder.ALPHABETICAL -> songs.sortedBy { it.title.lowercase() }
+            SortOrder.TITLE -> songs.sortedBy { it.title.lowercase() }
             SortOrder.ARTIST -> songs.sortedBy { it.artist.lowercase() }
+            SortOrder.ALBUM -> songs.sortedBy { it.album.lowercase() }
+            SortOrder.DATE_ADDED -> songs.sortedByDescending { it.dateAddedEpochMs }
+            SortOrder.DURATION -> songs.sortedByDescending { it.durationMs }
+            SortOrder.PLAY_COUNT -> songs.sortedByDescending { it.playCount }
             SortOrder.RECENTLY_ADDED -> songs.sortedByDescending { it.dateAddedEpochMs }
         }
     }
@@ -108,7 +112,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 }
 
 enum class SortOrder {
-    ALPHABETICAL, ARTIST, RECENTLY_ADDED
+    TITLE, ARTIST, ALBUM, DATE_ADDED, DURATION, PLAY_COUNT, RECENTLY_ADDED
 }
 
 data class AlbumGroup(

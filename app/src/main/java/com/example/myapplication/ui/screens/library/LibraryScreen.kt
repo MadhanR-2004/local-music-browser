@@ -22,11 +22,10 @@ import androidx.navigation.NavController
 import com.example.myapplication.InitialLoadInitializer
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
+import androidx.compose.ui.platform.LocalContext
 import com.example.myapplication.data.entity.Song
 import com.example.myapplication.ui.components.AlbumArtImage
 import com.example.myapplication.ui.viewmodel.*
-import com.example.myapplication.ui.viewmodel.MusicPlayerViewModel
-import com.example.myapplication.ui.viewmodel.SortOrder
 
 /**
  * Library Screen - Complete music collection with tabs
@@ -41,6 +40,14 @@ fun LibraryScreen(
     viewModel: LibraryViewModel = viewModel(),
     musicPlayerViewModel: MusicPlayerViewModel = viewModel()
 ) {
+    val sortingViewModel: SortingViewModel = viewModel()
+    val context = LocalContext.current
+    
+    // Initialize sorting preferences
+    LaunchedEffect(Unit) {
+        sortingViewModel.initialize(context)
+    }
+    
     var selectedTab by remember { mutableStateOf(initialTab) }
     val tabs = listOf("Songs", "Albums", "Artists", "Playlists", "Liked")
     
@@ -70,27 +77,56 @@ fun LibraryScreen(
                             expanded = showSortMenu,
                             onDismissRequest = { showSortMenu = false }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Alphabetical") },
-                                onClick = {
-                                    viewModel.setSortOrder(SortOrder.ALPHABETICAL)
-                                    showSortMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("By Artist") },
-                                onClick = {
-                                    viewModel.setSortOrder(SortOrder.ARTIST)
-                                    showSortMenu = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Recently Added") },
-                                onClick = {
-                                    viewModel.setSortOrder(SortOrder.RECENTLY_ADDED)
-                                    showSortMenu = false
-                                }
-                            )
+                            val currentSortOrder = when (selectedTab) {
+                                0 -> sortingViewModel.songsSortOrder.value
+                                1 -> sortingViewModel.albumsSortOrder.value
+                                2 -> sortingViewModel.artistsSortOrder.value
+                                3 -> sortingViewModel.playlistsSortOrder.value
+                                4 -> sortingViewModel.likedSortOrder.value
+                                else -> SortOrder.TITLE
+                            }
+                            
+                            val sortOptions = when (selectedTab) {
+                                0, 4 -> listOf(
+                                    "Title" to SortOrder.TITLE,
+                                    "Artist" to SortOrder.ARTIST,
+                                    "Album" to SortOrder.ALBUM,
+                                    "Date Added" to SortOrder.DATE_ADDED,
+                                    "Duration" to SortOrder.DURATION,
+                                    "Play Count" to SortOrder.PLAY_COUNT
+                                )
+                                1, 2, 3 -> listOf(
+                                    "Title" to SortOrder.TITLE,
+                                    "Date Added" to SortOrder.DATE_ADDED
+                                )
+                                else -> emptyList()
+                            }
+                            
+                            sortOptions.forEach { (label, order) ->
+                                DropdownMenuItem(
+                                    text = { 
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(label)
+                                            if (currentSortOrder == order) {
+                                                Icon(Icons.Default.Check, contentDescription = null)
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        when (selectedTab) {
+                                            0 -> sortingViewModel.setSongsSortOrder(order)
+                                            1 -> sortingViewModel.setAlbumsSortOrder(order)
+                                            2 -> sortingViewModel.setArtistsSortOrder(order)
+                                            3 -> sortingViewModel.setPlaylistsSortOrder(order)
+                                            4 -> sortingViewModel.setLikedSortOrder(order)
+                                        }
+                                        showSortMenu = false
+                                    }
+                                )
+                            }
                         }
                     }
                 },
@@ -127,11 +163,11 @@ fun LibraryScreen(
             
             // Tab Content
             when (selectedTab) {
-                0 -> SongsTab(songs, isLoading, musicPlayerViewModel, navController)
-                1 -> AlbumsTab(albums, isLoading, navController, musicPlayerViewModel)
-                2 -> ArtistsTab(artists, isLoading, navController, musicPlayerViewModel)
-                3 -> PlaylistsTab(musicPlayerViewModel)
-                4 -> LikedTab(viewModel, musicPlayerViewModel)
+                0 -> SongsTab(songs, isLoading, musicPlayerViewModel, navController, sortingViewModel)
+                1 -> AlbumsTab(albums, isLoading, navController, musicPlayerViewModel, sortingViewModel)
+                2 -> ArtistsTab(artists, isLoading, navController, musicPlayerViewModel, sortingViewModel)
+                3 -> PlaylistsTab(musicPlayerViewModel, sortingViewModel)
+                4 -> LikedTab(viewModel, musicPlayerViewModel, sortingViewModel)
             }
         }
     }
@@ -142,9 +178,31 @@ fun SongsTab(
     songs: List<Song>, 
     isLoading: Boolean,
     musicPlayerViewModel: MusicPlayerViewModel,
-    navController: NavController? = null
+    navController: NavController? = null,
+    sortingViewModel: SortingViewModel
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val sortOrder by sortingViewModel.songsSortOrder.collectAsState()
+    
+    // Apply sorting to songs
+    val sortedSongs = remember(songs, sortOrder) {
+        when (sortOrder) {
+            SortOrder.TITLE -> songs.sortedBy { it.title.lowercase() }
+            SortOrder.ARTIST -> songs.sortedBy { it.artist.lowercase() }
+            SortOrder.ALBUM -> songs.sortedBy { it.album.lowercase() }
+            SortOrder.DATE_ADDED -> songs.sortedByDescending { it.dateAddedEpochMs }
+            SortOrder.DURATION -> songs.sortedByDescending { it.durationMs }
+            SortOrder.PLAY_COUNT -> songs.sortedByDescending { it.playCount }
+            SortOrder.RECENTLY_ADDED -> songs.sortedByDescending { it.dateAddedEpochMs }
+        }
+    }
+    
+    // Update queue when sort order changes while music is playing
+    LaunchedEffect(sortOrder) {
+        if (musicPlayerViewModel.currentSong != null) {
+            musicPlayerViewModel.updateQueueWithSortedList(sortedSongs)
+        }
+    }
     
     if (isLoading) {
         Box(
@@ -153,7 +211,7 @@ fun SongsTab(
         ) {
             CircularProgressIndicator()
         }
-    } else if (songs.isEmpty()) {
+    } else if (sortedSongs.isEmpty()) {
         EmptyLibraryState("No songs in your library")
     } else {
         val swipeState = rememberSwipeRefreshState(isLoading)
@@ -170,13 +228,13 @@ fun SongsTab(
             contentPadding = PaddingValues(vertical = 8.dp, horizontal = 0.dp)
         ) {
             items(
-                items = songs,
+                items = sortedSongs,
                 key = { song -> song.id }, // stable item keys
                 contentType = { _ -> "song" } // helps Compose reuse item nodes
             ) { song ->
                 SongListItem(
                     song = song,
-                    onClick = { musicPlayerViewModel.playSong(song, customPlaylist = songs) },
+                    onClick = { musicPlayerViewModel.playSong(song, customPlaylist = sortedSongs) },
                     navController = navController,
                     musicPlayerViewModel = musicPlayerViewModel
                 )
@@ -194,8 +252,21 @@ fun AlbumsTab(
     albums: List<AlbumGroup>, 
     isLoading: Boolean,
     navController: NavController,
-    musicPlayerViewModel: MusicPlayerViewModel
+    musicPlayerViewModel: MusicPlayerViewModel,
+    sortingViewModel: SortingViewModel
 ) {
+    val sortOrder by sortingViewModel.albumsSortOrder.collectAsState()
+    val context = LocalContext.current
+    
+    // Apply sorting to albums
+    val sortedAlbums = remember(albums, sortOrder) {
+        when (sortOrder) {
+            SortOrder.TITLE -> albums.sortedBy { it.name.lowercase() }
+            SortOrder.DATE_ADDED -> albums.sortedByDescending { it.songs.maxOfOrNull { song -> song.dateAddedEpochMs } ?: 0L }
+            else -> albums.sortedBy { it.name.lowercase() }
+        }
+    }
+    
     if (isLoading) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -203,9 +274,18 @@ fun AlbumsTab(
         ) {
             CircularProgressIndicator()
         }
-    } else if (albums.isEmpty()) {
+    } else if (sortedAlbums.isEmpty()) {
         EmptyLibraryState("No albums in your library")
     } else {
+        val swipeState = rememberSwipeRefreshState(isLoading)
+        SwipeRefresh(
+            state = swipeState,
+            onRefresh = {
+                if (context is android.app.Application) {
+                    InitialLoadInitializer.runAsync(context)
+                }
+            }
+        ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             contentPadding = PaddingValues(16.dp),
@@ -213,7 +293,7 @@ fun AlbumsTab(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(
-                items = albums,
+                items = sortedAlbums,
                 key = { album -> album.name },
                 contentType = { _ -> "album" }
             ) { album ->
@@ -228,6 +308,7 @@ fun AlbumsTab(
                 )
             }
         }
+        }
     }
 }
 
@@ -236,8 +317,20 @@ fun ArtistsTab(
     artists: List<ArtistGroup>, 
     isLoading: Boolean,
     navController: NavController,
-    musicPlayerViewModel: MusicPlayerViewModel = viewModel()
+    musicPlayerViewModel: MusicPlayerViewModel = viewModel(),
+    sortingViewModel: SortingViewModel
 ) {
+    val sortOrder by sortingViewModel.artistsSortOrder.collectAsState()
+    val context = LocalContext.current
+    
+    // Apply sorting to artists
+    val sortedArtists = remember(artists, sortOrder) {
+        when (sortOrder) {
+            SortOrder.TITLE -> artists.sortedBy { it.name.lowercase() }
+            SortOrder.DATE_ADDED -> artists.sortedByDescending { it.songs.maxOfOrNull { song -> song.dateAddedEpochMs } ?: 0L }
+            else -> artists.sortedBy { it.name.lowercase() }
+        }
+    }
     if (isLoading) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -245,13 +338,22 @@ fun ArtistsTab(
         ) {
             CircularProgressIndicator()
         }
-    } else if (artists.isEmpty()) {
+    } else if (sortedArtists.isEmpty()) {
         EmptyLibraryState("No artists in your library")
     } else {
+        val swipeState = rememberSwipeRefreshState(isLoading)
+        SwipeRefresh(
+            state = swipeState,
+            onRefresh = {
+                if (context is android.app.Application) {
+                    InitialLoadInitializer.runAsync(context)
+                }
+            }
+        ) {
         LazyColumn(
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-            items(artists) { artist ->
+            items(sortedArtists) { artist ->
                 ArtistListItem(
                     artist = artist, 
                     onClick = { 
@@ -266,11 +368,12 @@ fun ArtistsTab(
                 Spacer(modifier = Modifier.height(80.dp))
             }
         }
+        }
     }
 }
 
 @Composable
-fun PlaylistsTab(musicPlayerViewModel: MusicPlayerViewModel = viewModel()) {
+fun PlaylistsTab(musicPlayerViewModel: MusicPlayerViewModel = viewModel(), sortingViewModel: SortingViewModel) {
     // TODO: Implement playlists from database
     Column(
         modifier = Modifier
@@ -313,10 +416,33 @@ fun PlaylistsTab(musicPlayerViewModel: MusicPlayerViewModel = viewModel()) {
 @Composable
 fun LikedTab(
     viewModel: LibraryViewModel = viewModel(),
-    musicPlayerViewModel: MusicPlayerViewModel = viewModel()
+    musicPlayerViewModel: MusicPlayerViewModel = viewModel(),
+    sortingViewModel: SortingViewModel
 ) {
     val likedSongs by viewModel.likedSongs.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val sortOrder by sortingViewModel.likedSortOrder.collectAsState()
+    val context = LocalContext.current
+    
+    // Apply sorting to liked songs
+    val sortedLikedSongs = remember(likedSongs, sortOrder) {
+        when (sortOrder) {
+            SortOrder.TITLE -> likedSongs.sortedBy { it.title.lowercase() }
+            SortOrder.ARTIST -> likedSongs.sortedBy { it.artist.lowercase() }
+            SortOrder.ALBUM -> likedSongs.sortedBy { it.album.lowercase() }
+            SortOrder.DATE_ADDED -> likedSongs.sortedByDescending { it.dateAddedEpochMs }
+            SortOrder.DURATION -> likedSongs.sortedByDescending { it.durationMs }
+            SortOrder.PLAY_COUNT -> likedSongs.sortedByDescending { it.playCount }
+            SortOrder.RECENTLY_ADDED -> likedSongs.sortedByDescending { it.dateAddedEpochMs }
+        }
+    }
+    
+    // Update queue when sort order changes while music is playing
+    LaunchedEffect(sortOrder) {
+        if (musicPlayerViewModel.currentSong != null) {
+            musicPlayerViewModel.updateQueueWithSortedList(sortedLikedSongs)
+        }
+    }
     
     if (isLoading) {
         Box(
@@ -325,7 +451,7 @@ fun LikedTab(
         ) {
             CircularProgressIndicator()
         }
-    } else if (likedSongs.isEmpty()) {
+    } else if (sortedLikedSongs.isEmpty()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -368,7 +494,7 @@ fun LikedTab(
                 ) {
                     Column {
                         Text(
-                            text = "${likedSongs.size} songs",
+                            text = "${sortedLikedSongs.size} songs",
                             style = MaterialTheme.typography.titleLarge
                         )
                         Text(
@@ -380,9 +506,9 @@ fun LikedTab(
                     
                     FilledTonalButton(
                         onClick = { 
-                            if (likedSongs.isNotEmpty()) {
+                            if (sortedLikedSongs.isNotEmpty()) {
                                 // Shuffle all liked songs
-                                musicPlayerViewModel.playSong(likedSongs.random())
+                                musicPlayerViewModel.playSong(sortedLikedSongs.random(), customPlaylist = sortedLikedSongs)
                                 android.util.Log.d("LibraryScreen", "Shuffling liked songs")
                             }
                         }
@@ -394,18 +520,27 @@ fun LikedTab(
                 }
             }
             
-            // Songs list
+            // Songs list with pull-to-refresh
+            val swipeState = rememberSwipeRefreshState(isLoading)
+            SwipeRefresh(
+                state = swipeState,
+                onRefresh = {
+                    if (context is android.app.Application) {
+                        InitialLoadInitializer.runAsync(context)
+                    }
+                }
+            ) {
             LazyColumn(
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
                 items(
-                    items = likedSongs,
+                    items = sortedLikedSongs,
                     key = { song -> song.id },
                     contentType = { _ -> "liked_song" }
                 ) { song ->
                     SongListItem(
                         song = song,
-                        onClick = { musicPlayerViewModel.playSong(song) },
+                        onClick = { musicPlayerViewModel.playSong(song, customPlaylist = sortedLikedSongs) },
                         navController = null, // NavController not available in this scope
                         musicPlayerViewModel = musicPlayerViewModel
                     )
@@ -413,6 +548,7 @@ fun LikedTab(
                 item {
                     Spacer(modifier = Modifier.height(80.dp))
                 }
+            }
             }
         }
     }
