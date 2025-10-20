@@ -186,6 +186,12 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
             musicService?.setPlaylist(playlist, songIndex)
             android.util.Log.d(TAG, "Set playlist with ${playlist.size} songs, starting at index $songIndex")
             currentSortedList = playlist
+            
+            // Only set original context if this is from a custom playlist (album/artist)
+            if (customPlaylist != null) {
+                musicService?.setOriginalContext(customPlaylist, song)
+                android.util.Log.d(TAG, "Set original context to custom playlist with ${customPlaylist.size} songs")
+            }
         } else {
             android.util.Log.w(TAG, "Cannot set playlist: playlist.size=${playlist.size}, songIndex=$songIndex")
         }
@@ -370,6 +376,8 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
         if (songIndex >= 0) {
             android.util.Log.d(TAG, "Playing song from context: ${song.title} at index $songIndex")
             musicService?.setPlaylist(sortedContext, songIndex)
+            // Set the original context to preserve the album/playlist context
+            musicService?.setOriginalContext(sortedContext, song)
             // Ensure playback actually starts and UI updates
             musicService?.playSong(song)
             _currentSong = song
