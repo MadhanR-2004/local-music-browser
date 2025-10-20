@@ -154,7 +154,11 @@ fun SongsTab(
         LazyColumn(
             contentPadding = PaddingValues(vertical = 8.dp, horizontal = 0.dp)
         ) {
-                items(songs) { song ->
+            items(
+                items = songs,
+                key = { song -> song.id }, // stable item keys
+                contentType = { _ -> "song" } // helps Compose reuse item nodes
+            ) { song ->
                 SongListItem(
                     song = song,
                     onClick = { musicPlayerViewModel.playSong(song, customPlaylist = songs) },
@@ -192,7 +196,11 @@ fun AlbumsTab(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(albums) { album ->
+            items(
+                items = albums,
+                key = { album -> album.name },
+                contentType = { _ -> "album" }
+            ) { album ->
                 AlbumGridItem(
                     album = album, 
                     onClick = { 
@@ -374,7 +382,11 @@ fun LikedTab(
             LazyColumn(
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                items(likedSongs) { song ->
+                items(
+                    items = likedSongs,
+                    key = { song -> song.id },
+                    contentType = { _ -> "liked_song" }
+                ) { song ->
                     SongListItem(
                         song = song,
                         onClick = { musicPlayerViewModel.playSong(song) },
@@ -397,6 +409,11 @@ fun SongListItem(
     navController: NavController? = null,
     musicPlayerViewModel: MusicPlayerViewModel? = null
 ) {
+    // Memoize the song info to prevent unnecessary recompositions
+    val songInfo = remember(song.title, song.artist, song.album) {
+        "${song.artist} • ${song.album}"
+    }
+    
     ListItem(
         headlineContent = {
             Text(
@@ -407,7 +424,7 @@ fun SongListItem(
         },
         supportingContent = {
             Text(
-                text = "${song.artist} • ${song.album}",
+                text = songInfo,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -418,6 +435,7 @@ fun SongListItem(
                 shape = MaterialTheme.shapes.medium,
                 tonalElevation = 1.dp
             ) {
+                // Album art is cached; avoid remeasuring during scroll
                 AlbumArtImage(
                     filePath = song.path,
                     contentDescription = "Album art for ${song.title}"

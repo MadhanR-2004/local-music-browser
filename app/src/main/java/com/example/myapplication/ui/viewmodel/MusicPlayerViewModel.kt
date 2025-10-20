@@ -342,7 +342,8 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
                         currentPosition = position
                     }
                 }
-                delay(100) // Update every 100ms
+                // Reduce UI churn to avoid jank; 250ms feels smooth enough for music progress
+                delay(200)
             }
         }
     }

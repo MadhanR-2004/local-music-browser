@@ -286,10 +286,13 @@ fun RecentSongCard(
                 .clip(MaterialTheme.shapes.medium),
             tonalElevation = 2.dp
         ) {
-            AlbumArtImage(
-                filePath = song.path,
-                contentDescription = "Album Art for ${song.title}"
-            )
+            // Use key to ensure proper recomposition and caching
+            key(song.path) {
+                AlbumArtImage(
+                    filePath = song.path,
+                    contentDescription = "Album Art for ${song.title}"
+                )
+            }
         }
         
         Spacer(modifier = Modifier.height(8.dp))

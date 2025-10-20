@@ -24,7 +24,7 @@
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:src="@android:drawable/ic_menu_search"
-                app:tint="@color/primary" />
+                android:tint="@color/primary" />
             <EditText
                 android:id="@+id/search_bar"
                 android:layout_width="0dp"
