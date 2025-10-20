@@ -71,12 +71,14 @@ fun AlbumDetailScreen(
                         .height(400.dp)
                 ) {
                     // Full-width album art background
-                    com.example.myapplication.ui.components.AlbumArtImage(
-                        filePath = songs.firstOrNull()?.path,
-                        contentDescription = "Album Art",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                    key(songs.firstOrNull()?.path) {
+                        com.example.myapplication.ui.components.AlbumArtImage(
+                            filePath = songs.firstOrNull()?.path,
+                            contentDescription = "Album Art",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                     
                     // Gradient overlay for text readability
                     Box(

@@ -5,7 +5,9 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.os.Build;
 
+import androidx.annotation.OptIn;
 import androidx.core.app.NotificationCompat;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.MediaSessionService;
@@ -43,6 +45,7 @@ public class MusicService extends MediaSessionService {
         super.onDestroy();
     }
 
+    @OptIn(markerClass = UnstableApi.class)
     private Notification buildPersistentNotification() {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
