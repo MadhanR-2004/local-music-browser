@@ -184,9 +184,11 @@ fun ArtistDetailScreen(
                 }
             } else {
                 items(songs) { song ->
-                    ArtistSongItem(
+                    com.example.myapplication.ui.screens.library.SongListItem(
                         song = song,
-                        onClick = { viewModel.playSong(song, customPlaylist = songs) }
+                        onClick = { viewModel.playSong(song, customPlaylist = songs) },
+                        navController = navController,
+                        musicPlayerViewModel = viewModel
                     )
                 }
             }

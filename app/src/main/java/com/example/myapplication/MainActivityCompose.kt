@@ -1,4 +1,6 @@
 package com.example.myapplication
+import androidx.work.WorkManager
+import androidx.work.OneTimeWorkRequestBuilder
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -28,10 +30,16 @@ import com.google.accompanist.systemuicontroller.rememberSystemUiController
 class MainActivityCompose : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
+        // Trigger auto-scan on app start
+        val workManager = androidx.work.WorkManager.getInstance(this)
+        val request = androidx.work.OneTimeWorkRequestBuilder<com.example.myapplication.worker.MusicScanWorker>()
+            .build()
+        workManager.enqueue(request)
+
         // Enable edge-to-edge display
         enableEdgeToEdge()
-        
+
         setContent {
             MusicPlayerTheme {
                 MusicPlayerApp()

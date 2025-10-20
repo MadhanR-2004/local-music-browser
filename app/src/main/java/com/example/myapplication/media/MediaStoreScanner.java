@@ -18,6 +18,49 @@ import java.util.List;
 public final class MediaStoreScanner {
     private MediaStoreScanner() {}
 
+        /**
+         * Rescan selected folders for new and removed songs.
+         * Adds new songs, removes deleted/moved songs.
+         * @param context Application context
+         * @param existingSongs List of songs already in DB
+         * @return List of new songs found
+         */
+        public static List<Song> rescan(@NonNull Context context, @NonNull List<Song> existingSongs) {
+            List<Song> scannedSongs = scan(context);
+            java.util.Set<String> existingPaths = new java.util.HashSet<>();
+            for (Song s : existingSongs) {
+                existingPaths.add(s.path);
+            }
+            List<Song> newSongs = new ArrayList<>();
+            for (Song s : scannedSongs) {
+                if (!existingPaths.contains(s.path)) {
+                    newSongs.add(s);
+                }
+            }
+            // Remove deleted/moved songs
+            List<Song> removedSongs = new ArrayList<>();
+            java.util.Set<String> scannedPaths = new java.util.HashSet<>();
+            for (Song s : scannedSongs) scannedPaths.add(s.path);
+            for (Song s : existingSongs) {
+                if (!scannedPaths.contains(s.path)) {
+                    removedSongs.add(s);
+                }
+            }
+            // Persist new songs
+            persist(context, newSongs);
+            // Remove deleted/moved songs from DB
+            if (!removedSongs.isEmpty()) {
+                try {
+                    AppDatabase db = DatabaseProvider.get(context);
+                    db.songDao().deleteAll(removedSongs);
+                    android.util.Log.d("MediaStoreScanner", "Removed " + removedSongs.size() + " deleted/moved songs from database");
+                } catch (Exception e) {
+                    android.util.Log.e("MediaStoreScanner", "Error removing deleted/moved songs", e);
+                }
+            }
+            return newSongs;
+        }
+
     public static List<Song> scan(@NonNull Context context) {
         List<Song> songs = new ArrayList<>();
         ContentResolver resolver = context.getContentResolver();

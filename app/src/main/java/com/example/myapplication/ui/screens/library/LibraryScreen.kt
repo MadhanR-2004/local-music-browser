@@ -19,6 +19,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.myapplication.InitialLoadInitializer
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import com.example.myapplication.data.entity.Song
 import com.example.myapplication.ui.components.AlbumArtImage
 import com.example.myapplication.ui.viewmodel.*
@@ -141,6 +144,8 @@ fun SongsTab(
     musicPlayerViewModel: MusicPlayerViewModel,
     navController: NavController? = null
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
     if (isLoading) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -151,6 +156,16 @@ fun SongsTab(
     } else if (songs.isEmpty()) {
         EmptyLibraryState("No songs in your library")
     } else {
+        val swipeState = rememberSwipeRefreshState(isLoading)
+        SwipeRefresh(
+            state = swipeState,
+            onRefresh = {
+                // Trigger rescan via InitialLoadInitializer (uses flows to update UI)
+                if (context is android.app.Application) {
+                    InitialLoadInitializer.runAsync(context)
+                }
+            }
+        ) {
         LazyColumn(
             contentPadding = PaddingValues(vertical = 8.dp, horizontal = 0.dp)
         ) {
@@ -169,6 +184,7 @@ fun SongsTab(
             item {
                 Spacer(modifier = Modifier.height(80.dp))
             }
+        }
         }
     }
 }
@@ -444,16 +460,27 @@ fun SongListItem(
         },
         trailingContent = {
             var showMenu by remember { mutableStateOf(false) }
-            
-            Box {
-                IconButton(onClick = { showMenu = true }) {
-                    Icon(Icons.Default.MoreVert, "More")
-                }
-                
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
+            val isCurrent = musicPlayerViewModel?.currentSong?.id == song.id
+            val isPlaying = musicPlayerViewModel?.isPlaying == true
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Now Playing expressive indicator
+                com.example.myapplication.ui.components.NowPlayingIndicator(
+                    isActive = isCurrent && isPlaying,
+                    modifier = Modifier
+                        .height(14.dp)
+                        .padding(end = 8.dp)
+                )
+
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, "More")
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
                     musicPlayerViewModel?.let { viewModel ->
                         DropdownMenuItem(
                             text = { Text("Play Next") },
@@ -524,6 +551,7 @@ fun SongListItem(
                             Icon(Icons.Default.Info, contentDescription = null)
                         }
                     )
+                    }
                 }
             }
         },

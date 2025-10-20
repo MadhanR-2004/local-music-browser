@@ -1,4 +1,6 @@
 package com.example.myapplication.ui.viewmodel
+import androidx.work.WorkManager
+import androidx.work.OneTimeWorkRequestBuilder
 
 import android.app.Application
 import android.content.Context
@@ -11,6 +13,21 @@ import kotlinx.coroutines.flow.asStateFlow
  * ViewModel for Settings Screen
  */
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
+    // Callback for launching folder picker (to be set by UI)
+    var onLaunchFolderPicker: (() -> Unit)? = null
+
+    fun launchFolderPicker() {
+        onLaunchFolderPicker?.invoke()
+    }
+
+    fun startBackgroundRescan() {
+        // Use WorkManager to start MusicScanWorker
+        val workManager = androidx.work.WorkManager.getInstance(getApplication())
+        val request = androidx.work.OneTimeWorkRequestBuilder<com.example.myapplication.worker.MusicScanWorker>()
+            .build()
+        workManager.enqueue(request)
+        android.util.Log.d("SettingsViewModel", "Background rescan triggered via WorkManager")
+    }
     
     private val sharedPrefs = application.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
     
@@ -36,7 +53,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         loadSettings()
     }
     
-    private fun loadSettings() {
+    fun loadSettings() {
         _useDynamicColors.value = sharedPrefs.getBoolean("dynamic_colors", true)
         _gaplessPlayback.value = sharedPrefs.getBoolean("gapless_playback", true)
         _crossfadeDuration.value = sharedPrefs.getInt("crossfade_duration", 0)
@@ -69,8 +86,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
     
     fun rescanLibrary() {
-        // TODO: Trigger library rescan
-        android.util.Log.d("SettingsViewModel", "Rescan library requested")
+    startBackgroundRescan()
     }
 }
 

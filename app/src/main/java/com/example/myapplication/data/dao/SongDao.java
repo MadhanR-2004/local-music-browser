@@ -1,4 +1,6 @@
+
 package com.example.myapplication.data.dao;
+import androidx.room.Delete;
 
 import androidx.room.Dao;
 import androidx.room.Insert;
@@ -9,9 +11,12 @@ import androidx.room.Update;
 import com.example.myapplication.data.entity.Song;
 
 import java.util.List;
+import kotlinx.coroutines.flow.Flow;
 
 @Dao
 public interface SongDao {
+    @Delete
+    void deleteAll(List<Song> songs);
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     long insert(Song song);
 
@@ -23,6 +28,10 @@ public interface SongDao {
 
     @Query("SELECT * FROM songs ORDER BY title ASC")
     List<Song> getAll();
+
+    // Reactive queries for live UI updates
+    @Query("SELECT * FROM songs ORDER BY title ASC")
+    Flow<List<Song>> getAllFlow();
 
     @Query("DELETE FROM songs")
     void clear();
@@ -57,8 +66,12 @@ public interface SongDao {
     @Query("SELECT * FROM songs ORDER BY dateAddedEpochMs DESC")
     List<Song> getRecentlyAdded();
 
+    @Query("SELECT * FROM songs ORDER BY dateAddedEpochMs DESC")
+    Flow<List<Song>> getRecentlyAddedFlow();
+
     @Query("SELECT * FROM songs WHERE playCount < 3 ORDER BY RANDOM() LIMIT 10")
     List<Song> getDiscoverSongs();
 }
+
 
 

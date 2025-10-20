@@ -9,6 +9,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -36,29 +41,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     
     init {
-        loadData()
-    }
-    
-    private fun loadData() {
+        // Live stream of songs
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                _isLoading.value = true
-                
-                // Load all songs from database
-                val songs = songDao.getAll()
-                _allSongs.value = songs
-                
-                // Generate recently played (for now, just take last 20 songs)
-                _recentlyPlayed.value = songs.takeLast(20).reversed()
-                
-                // Generate daily mixes based on genres/artists
-                _dailyMixes.value = generateDailyMixes(songs)
-                
-            } catch (e: Exception) {
-                android.util.Log.e("HomeViewModel", "Error loading data", e)
-            } finally {
-                _isLoading.value = false
-            }
+            songDao.getAllFlow()
+                .distinctUntilChanged()
+                .collect { songs ->
+                    _allSongs.value = songs
+                    _recentlyPlayed.value = songs.takeLast(20).reversed()
+                    _dailyMixes.value = generateDailyMixes(songs)
+                    _isLoading.value = false
+                }
         }
     }
     
@@ -117,9 +109,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return mixes
     }
     
-    fun refresh() {
-        loadData()
-    }
+    fun refresh() { /* flows update automatically */ }
     
     fun playMix(mix: Mix, musicPlayerViewModel: MusicPlayerViewModel) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -141,7 +131,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     
     fun shuffleAll(musicPlayerViewModel: MusicPlayerViewModel) {
         viewModelScope.launch(Dispatchers.IO) {
-            val songs = songDao.getAll().shuffled()
+            val songs = _allSongs.value.shuffled()
             if (songs.isNotEmpty()) {
                 android.util.Log.d("HomeViewModel", "Shuffle all: ${songs.size} songs")
                 // Play with the shuffled list as the playlist

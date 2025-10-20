@@ -1,6 +1,7 @@
 package com.example.myapplication.ui.components
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -8,6 +9,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
@@ -125,6 +128,72 @@ fun InteractiveIconButton(
         interactionSource = interactionSource
     ) {
         content()
+    }
+}
+
+/**
+ * Small animated equalizer indicator to show "Now Playing" state.
+ */
+@Composable
+fun NowPlayingIndicator(
+    isActive: Boolean,
+    modifier: Modifier = Modifier,
+    barColor: Color = MaterialTheme.colorScheme.primary,
+    barWidth: Dp = 2.dp,
+    barGap: Dp = 2.dp,
+    maxBarHeight: Dp = 12.dp
+) {
+    val transition = rememberInfiniteTransition(label = "eq")
+    val h1 by transition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ), label = "h1"
+    )
+    val h2 by transition.animateFloat(
+        initialValue = 1f, targetValue = 0.4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(650, easing = FastOutLinearInEasing),
+            repeatMode = RepeatMode.Reverse
+        ), label = "h2"
+    )
+    val h3 by transition.animateFloat(
+        initialValue = 0.6f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(550, easing = LinearOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ), label = "h3"
+    )
+
+    val inactiveAlpha = 0.45f
+    val alpha = if (isActive) 1f else inactiveAlpha
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(barGap)
+    ) {
+        val h1Dp = (maxBarHeight * (if (isActive) h1 else 0.35f)).coerceAtLeast(2.dp)
+        val h2Dp = (maxBarHeight * (if (isActive) h2 else 0.25f)).coerceAtLeast(2.dp)
+        val h3Dp = (maxBarHeight * (if (isActive) h3 else 0.45f)).coerceAtLeast(2.dp)
+        Box(
+            modifier = Modifier
+                .width(barWidth)
+                .height(h1Dp)
+                .background(barColor.copy(alpha = alpha), shape = MaterialTheme.shapes.extraSmall)
+        )
+        Box(
+            modifier = Modifier
+                .width(barWidth)
+                .height(h2Dp)
+                .background(barColor.copy(alpha = alpha), shape = MaterialTheme.shapes.extraSmall)
+        )
+        Box(
+            modifier = Modifier
+                .width(barWidth)
+                .height(h3Dp)
+                .background(barColor.copy(alpha = alpha), shape = MaterialTheme.shapes.extraSmall)
+        )
     }
 }
 

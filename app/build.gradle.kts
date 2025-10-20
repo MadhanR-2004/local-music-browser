@@ -43,6 +43,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
     // Existing dependencies
     implementation(libs.appcompat)
     implementation(libs.material)
@@ -53,6 +54,7 @@ dependencies {
     implementation(libs.media3.session)
     implementation(libs.palette)
     implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
     annotationProcessor(libs.room.compiler)
     implementation(libs.core)
     implementation(libs.viewpager2)
@@ -76,6 +78,7 @@ dependencies {
     // Accompanist (Compose utilities)
     implementation(libs.accompanist.systemuicontroller)
     implementation(libs.accompanist.permissions)
+    implementation(libs.accompanist.swiperefresh)
     
     // Image loading
     implementation(libs.coil.compose)

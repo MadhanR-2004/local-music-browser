@@ -9,6 +9,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -44,50 +49,47 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     val sortOrder: StateFlow<SortOrder> = _sortOrder.asStateFlow()
     
     init {
-        loadData()
-    }
-    
-    private fun loadData() {
+        // Reactive songs stream from Room
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                _isLoading.value = true
-                
-                val allSongs = songDao.getAll()
-                _songs.value = sortSongs(allSongs, _sortOrder.value)
-                
-                // Group by album
-                _albums.value = allSongs
-                    .groupBy { it.album }
-                    .map { (album, songs) ->
-                        AlbumGroup(
-                            name = album,
-                            artist = songs.firstOrNull()?.artist ?: "Unknown",
-                            songCount = songs.size,
-                            songs = songs.sortedBy { it.trackNumber }
-                        )
-                    }
-                    .sortedBy { it.name }
-                
-                // Group by artist
-                _artists.value = allSongs
-                    .groupBy { it.artist }
-                    .map { (artist, songs) ->
-                        ArtistGroup(
-                            name = artist,
-                            songCount = songs.size,
-                            albumCount = songs.map { it.album }.distinct().size,
-                            songs = songs
-                        )
-                    }
-                    .sortedBy { it.name }
-                
-            } catch (e: Exception) {
-                android.util.Log.e("LibraryViewModel", "Error loading library", e)
-            } finally {
-                _isLoading.value = false
+            songDao.getAllFlow()
+                .distinctUntilChanged()
+                .collect { list ->
+                    _songs.value = sortSongs(list, _sortOrder.value)
+                    // Update derived groups when base changes
+                    _albums.value = list
+                        .groupBy { it.album }
+                        .map { (album, songs) ->
+                            AlbumGroup(
+                                name = album,
+                                artist = songs.firstOrNull()?.artist ?: "Unknown",
+                                songCount = songs.size,
+                                songs = songs.sortedBy { it.trackNumber }
+                            )
+                        }
+                        .sortedBy { it.name }
+                    _artists.value = list
+                        .groupBy { it.artist }
+                        .map { (artist, songs) ->
+                            ArtistGroup(
+                                name = artist,
+                                songCount = songs.size,
+                                albumCount = songs.map { it.album }.distinct().size,
+                                songs = songs
+                            )
+                        }
+                        .sortedBy { it.name }
+                    _isLoading.value = false
+                }
+        }
+        // React to sort order changes
+        viewModelScope.launch(Dispatchers.Default) {
+            _sortOrder.collect { order ->
+                _songs.value = sortSongs(_songs.value, order)
             }
         }
     }
+    
+    private fun loadData() { /* no-op: flows keep data live */ }
     
     fun setSortOrder(order: SortOrder) {
         _sortOrder.value = order
@@ -102,9 +104,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
     
-    fun refresh() {
-        loadData()
-    }
+    fun refresh() { /* no-op: flows update automatically */ }
 }
 
 enum class SortOrder {

@@ -37,6 +37,7 @@ media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", versi
 media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 palette = { group = "androidx.palette", name = "palette", version.ref = "palette" }
 core = { group = "androidx.core", name = "core", version.ref = "core" }
 viewpager2 = { group = "androidx.viewpager2", name = "viewpager2", version.ref = "viewpager2" }
@@ -63,6 +64,7 @@ navigation-compose = { group = "androidx.navigation", name = "navigation-compose
 # Accompanist (Compose extensions)
 accompanist-systemuicontroller = { group = "com.google.accompanist", name = "accompanist-systemuicontroller", version.ref = "accompanist" }
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanist" }
+accompanist-swiperefresh = { group = "com.google.accompanist", name = "accompanist-swiperefresh", version.ref = "accompanist" }
 
 # Image loading for Compose
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
