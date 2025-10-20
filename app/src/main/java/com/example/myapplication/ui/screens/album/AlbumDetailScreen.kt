@@ -51,6 +51,22 @@ fun AlbumDetailScreen(
         }
     }
     
+    // Create sorted songs for consistent queue ordering
+    val sortedSongs = remember(songs) {
+        songs.sortedBy { it.trackNumber }
+    }
+    
+    // Update queue when songs change (e.g., after rescan) while music is playing
+    LaunchedEffect(sortedSongs) {
+        if (viewModel.currentSong != null && sortedSongs.isNotEmpty()) {
+            // Check if current song is from this album
+            val currentSong = viewModel.currentSong
+            if (currentSong?.album == albumName) {
+                viewModel.updateQueueWithSortedList(sortedSongs)
+            }
+        }
+    }
+    
     val artistName = songs.firstOrNull()?.artist ?: "Unknown Artist"
     val trackCount = songs.size
     val totalDuration = songs.sumOf { it.durationMs }
@@ -136,8 +152,8 @@ fun AlbumDetailScreen(
                 ) {
                     com.example.myapplication.ui.components.InteractiveButton(
                         onClick = { 
-                            if (songs.isNotEmpty()) {
-                                viewModel.playSong(songs.first(), customPlaylist = songs)
+                            if (sortedSongs.isNotEmpty()) {
+                                viewModel.playSong(sortedSongs.first(), customPlaylist = sortedSongs)
                             }
                         },
                         modifier = Modifier.weight(1f),
@@ -150,8 +166,8 @@ fun AlbumDetailScreen(
                     
                     com.example.myapplication.ui.components.InteractiveButton(
                         onClick = { 
-                            if (songs.isNotEmpty()) {
-                                val shuffled = songs.shuffled()
+                            if (sortedSongs.isNotEmpty()) {
+                                val shuffled = sortedSongs.shuffled()
                                 viewModel.playSong(shuffled.first(), customPlaylist = shuffled)
                             }
                         },
@@ -194,10 +210,12 @@ fun AlbumDetailScreen(
                     }
                 }
             } else {
-                items(songs) { song ->
-                    AlbumTrackItem(
+                items(sortedSongs) { song ->
+                    com.example.myapplication.ui.screens.library.SongListItem(
                         song = song,
-                        onClick = { viewModel.playSong(song, customPlaylist = songs) }
+                        onClick = { viewModel.playSong(song, customPlaylist = sortedSongs) },
+                        navController = navController,
+                        musicPlayerViewModel = viewModel
                     )
                 }
             }

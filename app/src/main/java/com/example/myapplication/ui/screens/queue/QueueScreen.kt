@@ -37,7 +37,8 @@ import kotlinx.coroutines.launch
 fun QueueScreen(
     navController: NavController,
     modifier: Modifier = Modifier,
-    musicPlayerViewModel: MusicPlayerViewModel = viewModel()
+    musicPlayerViewModel: MusicPlayerViewModel = viewModel(),
+    sortedList: List<Song>? = null
 ) {
     // Load queue hierarchy from music player service
     var playNextQueue by remember { mutableStateOf<List<Song>>(emptyList()) }
@@ -51,7 +52,17 @@ fun QueueScreen(
         while (true) {
             playNextQueue = musicPlayerViewModel.getPlayNextQueue()
             regularQueue = musicPlayerViewModel.getRegularQueue()
-            originalContext = musicPlayerViewModel.getOriginalContext()
+            // Use sorted list if provided, otherwise try to get current sorted list
+            originalContext = if (sortedList != null) {
+                musicPlayerViewModel.getSortedOriginalContext(sortedList)
+            } else {
+                val currentSortedList = musicPlayerViewModel.getCurrentSortedList()
+                if (currentSortedList.isNotEmpty()) {
+                    musicPlayerViewModel.getSortedOriginalContext(currentSortedList)
+                } else {
+                    musicPlayerViewModel.getOriginalContext()
+                }
+            }
             currentSong = musicPlayerViewModel.currentSong
             kotlinx.coroutines.delay(500) // Update every 500ms
         }
@@ -61,6 +72,7 @@ fun QueueScreen(
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var targetIndex by remember { mutableStateOf<Int?>(null) }
     var draggedSection by remember { mutableStateOf<String?>(null) }
+    var accumulatedDy by remember { mutableStateOf(0f) }
     
     Scaffold(
         topBar = {
@@ -206,6 +218,7 @@ fun QueueScreen(
                                 draggedIndex = null
                                 targetIndex = null
                                 draggedSection = null
+                                accumulatedDy = 0f
                             },
                             onDragTargetChanged = { isTarget ->
                                 if (isTarget) {
@@ -269,6 +282,7 @@ fun QueueScreen(
                                 draggedIndex = null
                                 targetIndex = null
                                 draggedSection = null
+                                accumulatedDy = 0f
                             },
                             onDragTargetChanged = { isTarget ->
                                 if (isTarget) {
@@ -302,10 +316,8 @@ fun QueueScreen(
                             section = "context",
                             onRemove = { },
                             onClick = {
-                                // Jump to this song
-                                for (i in 0 until playNextQueue.size + regularQueue.size + index) {
-                                    musicPlayerViewModel.seekToNext()
-                                }
+                                // Play this song directly from the sorted context
+                                musicPlayerViewModel.playSongFromContext(song, originalContext)
                             }
                         )
                     }
@@ -357,7 +369,10 @@ fun QueueSongItem(
                                 isDragging = false
                                 onDragEnd()
                             },
-                            onDrag = { _, _ -> }
+                            onDrag = { _, dragAmount ->
+                                // Notify parent that this item is a potential target while dragging
+                                onDragTargetChanged(true)
+                            }
                         )
                     }
                 } else Modifier

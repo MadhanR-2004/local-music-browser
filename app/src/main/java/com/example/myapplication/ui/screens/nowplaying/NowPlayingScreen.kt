@@ -53,9 +53,11 @@ fun NowPlayingScreen(
     // Local state for like
     val isLiked by viewModel.isLiked.collectAsState()
     
-    // Extract dominant colors from album art
+    // Extract multiple swatches from album art for expressive background
     var dominantColor by remember { mutableStateOf<Color?>(null) }
     var vibrantColor by remember { mutableStateOf<Color?>(null) }
+    var mutedColor by remember { mutableStateOf<Color?>(null) }
+    var darkMutedColor by remember { mutableStateOf<Color?>(null) }
     
     LaunchedEffect(albumArt) {
         if (albumArt != null) {
@@ -64,15 +66,21 @@ fun NowPlayingScreen(
                     val palette = Palette.from(albumArt).generate()
                     dominantColor = palette.getDominantColor(0xFF1DB954.toInt()).let { Color(it) }
                     vibrantColor = palette.getVibrantColor(0xFF1DB954.toInt()).let { Color(it) }
+                    mutedColor = palette.getMutedColor(0xFF2A2A2A.toInt()).let { Color(it) }
+                    darkMutedColor = palette.getDarkMutedColor(0xFF121212.toInt()).let { Color(it) }
                 } catch (e: Exception) {
                     // Fallback to default colors
                     dominantColor = null
                     vibrantColor = null
+                    mutedColor = null
+                    darkMutedColor = null
                 }
             }
         } else {
             dominantColor = null
             vibrantColor = null
+            mutedColor = null
+            darkMutedColor = null
         }
     }
     
@@ -81,17 +89,17 @@ fun NowPlayingScreen(
         viewModel.setMusicPlayerViewModel(musicPlayerViewModel)
     }
     
-    // Animated background colors - use extracted colors or fallback to theme
-    val targetColor = dominantColor ?: if (isPlaying) 
-        MaterialTheme.colorScheme.primaryContainer 
-    else 
-        MaterialTheme.colorScheme.surfaceVariant
-    
-    val animatedColors by animateColorAsState(
-        targetValue = targetColor,
-        animationSpec = tween(800), 
-        label = "bg_animation"
-    )
+    // Animated background colors - build a 3-stop gradient
+    val topTarget = (vibrantColor ?: dominantColor)
+        ?: if (isPlaying) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    val midTarget = (mutedColor ?: dominantColor)
+        ?: MaterialTheme.colorScheme.surface
+    val bottomTarget = (darkMutedColor ?: mutedColor ?: dominantColor)
+        ?: MaterialTheme.colorScheme.background
+
+    val topColor by animateColorAsState(topTarget, tween(800), label = "bg_top")
+    val midColor by animateColorAsState(midTarget, tween(900), label = "bg_mid")
+    val bottomColor by animateColorAsState(bottomTarget, tween(1000), label = "bg_bottom")
     
     // Swipe-to-dismiss state
     var offsetY by remember { mutableStateOf(0f) }
@@ -103,10 +111,7 @@ fun NowPlayingScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(
-                        animatedColors,
-                        MaterialTheme.colorScheme.surface
-                    )
+                    colors = listOf(topColor, midColor, bottomColor)
                 )
             )
     ) {

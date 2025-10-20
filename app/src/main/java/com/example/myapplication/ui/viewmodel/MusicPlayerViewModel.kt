@@ -109,6 +109,7 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
         private set
     
     private var allSongs = listOf<Song>()
+    private var currentSortedList = listOf<Song>()
     
     companion object {
         private const val TAG = "MusicPlayerViewModel"
@@ -127,11 +128,11 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
     private fun loadFirstSong() {
         viewModelScope.launch {
             val songs = withContext(Dispatchers.IO) {
-                // Sort all songs alphabetically by title
-                songDao.getAll().sortedBy { it.title.lowercase() }
+                // Load all songs without pre-sorting - let UI handle sorting
+                songDao.getAll()
             }
             allSongs = songs
-            android.util.Log.d(TAG, "Loaded ${songs.size} songs from database (sorted by title)")
+            android.util.Log.d(TAG, "Loaded ${songs.size} songs from database (unsorted)")
             if (songs.isNotEmpty()) {
                 // Only set current song if we don't have one yet (e.g., fresh start)
                 // If service already has a current song, don't override it or its playlist
@@ -184,6 +185,13 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
         if (playlist.isNotEmpty() && songIndex >= 0) {
             musicService?.setPlaylist(playlist, songIndex)
             android.util.Log.d(TAG, "Set playlist with ${playlist.size} songs, starting at index $songIndex")
+            currentSortedList = playlist
+            
+            // Only set original context if this is from a custom playlist (album/artist)
+            if (customPlaylist != null) {
+                musicService?.setOriginalContext(customPlaylist, song)
+                android.util.Log.d(TAG, "Set original context to custom playlist with ${customPlaylist.size} songs")
+            }
         } else {
             android.util.Log.w(TAG, "Cannot set playlist: playlist.size=${playlist.size}, songIndex=$songIndex")
         }
@@ -204,6 +212,24 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
             seekTo(0)
         } else {
             musicService?.playPrevious()
+        }
+    }
+    
+    /**
+     * Updates the queue with a new sorted list while maintaining the current song position
+     * This is called when the user changes sort order while music is playing
+     */
+    fun updateQueueWithSortedList(sortedList: List<Song>) {
+        val currentSong = _currentSong
+        if (currentSong != null && sortedList.isNotEmpty()) {
+            val newIndex = sortedList.indexOfFirst { it.id == currentSong.id }
+            if (newIndex >= 0) {
+                android.util.Log.d(TAG, "Updating queue with ${sortedList.size} songs, current song at index $newIndex")
+                musicService?.setPlaylist(sortedList, newIndex)
+                currentSortedList = sortedList
+            } else {
+                android.util.Log.w(TAG, "Current song not found in new sorted list, cannot update queue")
+            }
         }
     }
     
@@ -274,6 +300,28 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
         return musicService?.getOriginalContext() ?: emptyList()
     }
     
+    /**
+     * Gets the original context (album/playlist) in the correct sorted order
+     * This should be called from UI components that need the sorted context
+     */
+    fun getSortedOriginalContext(sortedList: List<Song>): List<Song> {
+        val originalContext = getOriginalContext()
+        if (originalContext.isEmpty()) return emptyList()
+        
+        // Filter the sorted list to only include songs that are in the original context
+        return sortedList.filter { song -> 
+            originalContext.any { originalSong -> originalSong.id == song.id }
+        }
+    }
+    
+    /**
+     * Gets the current sorted list from the service if available
+     * This is used by the QueueScreen to display the correct order
+     */
+    fun getCurrentSortedList(): List<Song> {
+        return currentSortedList
+    }
+    
     fun addToPlayNext(song: Song) {
         musicService?.addToPlayNext(song)
         android.util.Log.d(TAG, "Added to Play Next: ${song.title}")
@@ -317,6 +365,26 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
     fun clearQueue() {
         musicService?.clearQueue()
         android.util.Log.d(TAG, "Queue cleared")
+    }
+    
+    /**
+     * Plays a specific song from the original context (album/playlist)
+     * This will set the entire sorted context as the new queue
+     */
+    fun playSongFromContext(song: Song, sortedContext: List<Song>) {
+        val songIndex = sortedContext.indexOfFirst { it.id == song.id }
+        if (songIndex >= 0) {
+            android.util.Log.d(TAG, "Playing song from context: ${song.title} at index $songIndex")
+            musicService?.setPlaylist(sortedContext, songIndex)
+            // Set the original context to preserve the album/playlist context
+            musicService?.setOriginalContext(sortedContext, song)
+            // Ensure playback actually starts and UI updates
+            musicService?.playSong(song)
+            _currentSong = song
+            loadAlbumArt(song.path)
+        } else {
+            android.util.Log.w(TAG, "Song not found in sorted context: ${song.title}")
+        }
     }
     
     fun updateProgress(position: Long, duration: Long) {

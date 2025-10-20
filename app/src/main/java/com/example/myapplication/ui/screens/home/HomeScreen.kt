@@ -23,6 +23,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import coil.compose.AsyncImage
 import com.example.myapplication.data.entity.Song
 import com.example.myapplication.ui.components.AlbumArtImage
@@ -68,6 +70,11 @@ fun HomeScreen(
             )
         }
     ) { paddingValues ->
+        val swipeState = rememberSwipeRefreshState(isLoading)
+        SwipeRefresh(
+            state = swipeState,
+            onRefresh = { viewModel.refresh() }
+        ) {
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
@@ -185,6 +192,7 @@ fun HomeScreen(
             item {
                 Spacer(modifier = Modifier.height(80.dp))
             }
+        }
         }
     }
 }
