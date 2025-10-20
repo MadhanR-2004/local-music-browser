@@ -198,7 +198,7 @@ class MusicPlayerService : Service() {
         playlist.clear()
         playlist.addAll(songs)
         currentIndex = startIndex.coerceIn(0, playlist.size - 1)
-        lastPlayedContextIndex = startIndex.coerceIn(0, songs.size - 1) // Track where we started
+        // Don't update lastPlayedContextIndex here - it should only be updated when setting original context
         Log.d(TAG, "Playlist set: ${songs.size} songs, starting at index $currentIndex, context index: $lastPlayedContextIndex")
         
         // If shuffle is enabled, apply it to the new playlist
@@ -218,6 +218,7 @@ class MusicPlayerService : Service() {
         lastPlayedContextIndex = contextIndex.coerceIn(0, songs.size - 1)
         Log.d(TAG, "Original context set: ${songs.size} songs, current song at context index: $lastPlayedContextIndex")
     }
+    
     
     fun setShuffleEnabled(enabled: Boolean) {
         if (isShuffleEnabled == enabled) return
