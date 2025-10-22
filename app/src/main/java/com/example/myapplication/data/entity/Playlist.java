@@ -12,6 +12,8 @@ public class Playlist {
     @NonNull
     public String name = "";
 
+    public String description;
+
     public long createdAtEpochMs;
 }
 

@@ -8,12 +8,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -25,7 +27,13 @@ import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import androidx.compose.ui.platform.LocalContext
 import com.example.myapplication.data.entity.Song
 import com.example.myapplication.ui.components.AlbumArtImage
+import com.example.myapplication.ui.components.InteractiveIconButton
+import com.example.myapplication.ui.components.ExpressiveButton
+import com.example.myapplication.ui.components.ExpressiveCard
+import com.example.myapplication.ui.components.ExpressiveIconButton
 import com.example.myapplication.ui.viewmodel.*
+import com.example.myapplication.ui.screens.favorites.FavoritesScreen
+import com.example.myapplication.ui.screens.playlist.PlaylistScreen
 
 /**
  * Library Screen - Complete music collection with tabs
@@ -41,6 +49,8 @@ fun LibraryScreen(
     musicPlayerViewModel: MusicPlayerViewModel = viewModel()
 ) {
     val sortingViewModel: SortingViewModel = viewModel()
+    val favoritesViewModel: FavoritesViewModel = viewModel()
+    val playlistViewModel: PlaylistViewModel = viewModel()
     val context = LocalContext.current
     
     // Initialize sorting preferences
@@ -163,11 +173,11 @@ fun LibraryScreen(
             
             // Tab Content
             when (selectedTab) {
-                0 -> SongsTab(songs, isLoading, musicPlayerViewModel, navController, sortingViewModel)
+                0 -> SongsTab(songs, isLoading, musicPlayerViewModel, navController, sortingViewModel,     favoritesViewModel, playlistViewModel)
                 1 -> AlbumsTab(albums, isLoading, navController, musicPlayerViewModel, sortingViewModel)
                 2 -> ArtistsTab(artists, isLoading, navController, musicPlayerViewModel, sortingViewModel)
-                3 -> PlaylistsTab(musicPlayerViewModel, sortingViewModel)
-                4 -> LikedTab(viewModel, musicPlayerViewModel, sortingViewModel)
+                3 -> PlaylistsTab(musicPlayerViewModel, sortingViewModel, navController)
+                4 -> LikedTab(viewModel, musicPlayerViewModel, sortingViewModel, navController)
             }
         }
     }
@@ -179,7 +189,9 @@ fun SongsTab(
     isLoading: Boolean,
     musicPlayerViewModel: MusicPlayerViewModel,
     navController: NavController? = null,
-    sortingViewModel: SortingViewModel
+    sortingViewModel: SortingViewModel,
+    favoritesViewModel: FavoritesViewModel = viewModel(),
+    playlistViewModel: PlaylistViewModel = viewModel()
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val sortOrder by sortingViewModel.songsSortOrder.collectAsState()
@@ -236,7 +248,9 @@ fun SongsTab(
                     song = song,
                     onClick = { musicPlayerViewModel.playSong(song, customPlaylist = sortedSongs) },
                     navController = navController,
-                    musicPlayerViewModel = musicPlayerViewModel
+                    musicPlayerViewModel = musicPlayerViewModel,
+                    favoritesViewModel = favoritesViewModel,
+                    playlistViewModel = playlistViewModel
                 )
             }
             item {
@@ -373,43 +387,116 @@ fun ArtistsTab(
 }
 
 @Composable
-fun PlaylistsTab(musicPlayerViewModel: MusicPlayerViewModel = viewModel(), sortingViewModel: SortingViewModel) {
-    // TODO: Implement playlists from database
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.QueueMusic,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Playlists",
-            style = MaterialTheme.typography.headlineSmall
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Create custom playlists",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        FilledTonalButton(
-            onClick = { 
-                // TODO: Navigate to create playlist
-                android.util.Log.d("LibraryScreen", "Create playlist clicked")
-            }
+fun PlaylistsTab(
+    musicPlayerViewModel: MusicPlayerViewModel = viewModel(), 
+    sortingViewModel: SortingViewModel,
+    navController: NavController
+) {
+    val playlistViewModel: PlaylistViewModel = viewModel()
+    val playlists by playlistViewModel.playlists.collectAsState()
+    val isLoading by playlistViewModel.isLoading.collectAsState()
+    
+    var showCreateDialog by remember { mutableStateOf(false) }
+    
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Create Playlist")
+            CircularProgressIndicator()
         }
+    } else if (playlists.isEmpty()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Playlist icon with gradient background
+            Surface(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlaylistPlay,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Text(
+                text = "No Playlists Yet",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "Create your first playlist to organize your music",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            ExpressiveButton(
+                onClick = { showCreateDialog = true },
+                isPrimary = true
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Create Playlist")
+            }
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(playlists) { playlist ->
+                PlaylistItem(
+                    playlist = playlist,
+                    onPlaylistClick = { 
+                        navController.navigate("playlist/${playlist.id}")
+                    },
+                    onPlayAll = { 
+                        // TODO: Play all songs in playlist
+                    },
+                    onShuffle = {
+                        // TODO: Shuffle all songs in playlist
+                    },
+                    onMoreClick = { /* TODO: Show playlist options */ }
+                )
+            }
+        }
+    }
+    
+    // Create playlist dialog
+    if (showCreateDialog) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreateDialog = false },
+            onCreatePlaylist = { name, description ->
+                playlistViewModel.createPlaylist(name, description)
+                showCreateDialog = false
+            }
+        )
     }
 }
 
@@ -417,12 +504,14 @@ fun PlaylistsTab(musicPlayerViewModel: MusicPlayerViewModel = viewModel(), sorti
 fun LikedTab(
     viewModel: LibraryViewModel = viewModel(),
     musicPlayerViewModel: MusicPlayerViewModel = viewModel(),
-    sortingViewModel: SortingViewModel
+    sortingViewModel: SortingViewModel,
+    navController: NavController
 ) {
-    val likedSongs by viewModel.likedSongs.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val favoritesViewModel: FavoritesViewModel = viewModel()
+    val playlistViewModel: PlaylistViewModel = viewModel()
+    val likedSongs by favoritesViewModel.likedSongs.collectAsState()
+    val isLoading by favoritesViewModel.isLoading.collectAsState()
     val sortOrder by sortingViewModel.likedSortOrder.collectAsState()
-    val context = LocalContext.current
     
     // Apply sorting to liked songs
     val sortedLikedSongs = remember(likedSongs, sortOrder) {
@@ -437,13 +526,6 @@ fun LikedTab(
         }
     }
     
-    // Update queue when sort order changes while music is playing
-    LaunchedEffect(sortOrder) {
-        if (musicPlayerViewModel.currentSong != null) {
-            musicPlayerViewModel.updateQueueWithSortedList(sortedLikedSongs)
-        }
-    }
-    
     if (isLoading) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -455,25 +537,43 @@ fun LikedTab(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.FavoriteBorder,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            // Heart icon with gradient background
+            Surface(
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
             Text(
-                text = "No liked songs",
-                style = MaterialTheme.typography.headlineSmall
+                text = "No Liked Songs Yet",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
+            
             Spacer(modifier = Modifier.height(8.dp))
+            
             Text(
-                text = "Tap ❤️ on songs to add them here",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Tap the heart icon on any song to add it to your favorites",
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
@@ -504,12 +604,11 @@ fun LikedTab(
                         )
                     }
                     
-                    FilledTonalButton(
+                    ExpressiveButton(
                         onClick = { 
                             if (sortedLikedSongs.isNotEmpty()) {
                                 // Shuffle all liked songs
                                 musicPlayerViewModel.playSong(sortedLikedSongs.random(), customPlaylist = sortedLikedSongs)
-                                android.util.Log.d("LibraryScreen", "Shuffling liked songs")
                             }
                         }
                     ) {
@@ -520,16 +619,7 @@ fun LikedTab(
                 }
             }
             
-            // Songs list with pull-to-refresh
-            val swipeState = rememberSwipeRefreshState(isLoading)
-            SwipeRefresh(
-                state = swipeState,
-                onRefresh = {
-                    if (context is android.app.Application) {
-                        InitialLoadInitializer.runAsync(context)
-                    }
-                }
-            ) {
+            // Songs list
             LazyColumn(
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
@@ -541,14 +631,15 @@ fun LikedTab(
                     SongListItem(
                         song = song,
                         onClick = { musicPlayerViewModel.playSong(song, customPlaylist = sortedLikedSongs) },
-                        navController = null, // NavController not available in this scope
-                        musicPlayerViewModel = musicPlayerViewModel
+                        navController = navController,
+                        musicPlayerViewModel = musicPlayerViewModel,
+                        favoritesViewModel = favoritesViewModel,
+                        playlistViewModel = playlistViewModel
                     )
                 }
                 item {
                     Spacer(modifier = Modifier.height(80.dp))
                 }
-            }
             }
         }
     }
@@ -559,12 +650,17 @@ fun SongListItem(
     song: Song,
     onClick: () -> Unit,
     navController: NavController? = null,
-    musicPlayerViewModel: MusicPlayerViewModel? = null
+    musicPlayerViewModel: MusicPlayerViewModel? = null,
+    favoritesViewModel: FavoritesViewModel? = null,
+    playlistViewModel: PlaylistViewModel? = null
 ) {
     // Memoize the song info to prevent unnecessary recompositions
     val songInfo = remember(song.title, song.artist, song.album) {
         "${song.artist} • ${song.album}"
     }
+    
+    // State for playlist selection dialog
+    var showPlaylistDialog by remember { mutableStateOf(false) }
     
     ListItem(
         headlineContent = {
@@ -598,6 +694,7 @@ fun SongListItem(
             var showMenu by remember { mutableStateOf(false) }
             val isCurrent = musicPlayerViewModel?.currentSong?.id == song.id
             val isPlaying = musicPlayerViewModel?.isPlaying == true
+            val isFavorite = favoritesViewModel?.isFavorite(song.id) ?: false
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Now Playing expressive indicator
@@ -607,6 +704,7 @@ fun SongListItem(
                         .height(14.dp)
                         .padding(end = 8.dp)
                 )
+
 
                 Box {
                     IconButton(onClick = { showMenu = true }) {
@@ -641,11 +739,31 @@ fun SongListItem(
                             }
                         )
                     }
+                    
+                    // Like/Unlike option
+                    favoritesViewModel?.let { favViewModel ->
+                        val isFavorite = favViewModel.isFavorite(song.id)
+                        DropdownMenuItem(
+                            text = { Text(if (isFavorite) "Remove from Favorites" else "Add to Favorites") },
+                            onClick = {
+                                showMenu = false
+                                favViewModel.toggleFavorite(song)
+                                android.util.Log.d("LibraryScreen", "${if (isFavorite) "Removed from" else "Added to"} favorites: ${song.title}")
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                    contentDescription = null,
+                                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Add to Playlist") },
                         onClick = {
                             showMenu = false
-                            android.util.Log.d("LibraryScreen", "Add to playlist: ${song.title}")
+                            showPlaylistDialog = true
                         },
                         leadingIcon = {
                             Icon(Icons.Default.PlaylistAdd, contentDescription = null)
@@ -693,6 +811,18 @@ fun SongListItem(
         },
         modifier = Modifier.clickable(onClick = onClick)
     )
+    
+    // Playlist selection dialog
+    if (showPlaylistDialog) {
+        PlaylistSelectionDialog(
+            song = song,
+            onDismiss = { showPlaylistDialog = false },
+            onPlaylistSelected = { playlist ->
+                playlistViewModel?.addSongToPlaylist(playlist, song)
+                showPlaylistDialog = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -809,5 +939,219 @@ fun EmptyLibraryState(message: String) {
     }
 }
 
+@Composable
+fun PlaylistItem(
+    playlist: com.example.myapplication.data.entity.Playlist,
+    onPlaylistClick: () -> Unit,
+    onPlayAll: () -> Unit,
+    onShuffle: () -> Unit,
+    onMoreClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ExpressiveCard(
+        onClick = onPlaylistClick,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Playlist cover (placeholder for now)
+            Surface(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlaylistPlay,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            // Playlist info
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "0 songs", // TODO: Get actual count
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            // Action buttons
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ExpressiveIconButton(
+                    onClick = onPlayAll
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play all"
+                    )
+                }
+                
+                ExpressiveIconButton(
+                    onClick = onShuffle
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shuffle,
+                        contentDescription = "Shuffle"
+                    )
+                }
+                
+                ExpressiveIconButton(
+                    onClick = onMoreClick
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More options"
+                    )
+                }
+            }
+        }
+    }
+}
 
+@Composable
+fun CreatePlaylistDialog(
+    onDismiss: () -> Unit,
+    onCreatePlaylist: (String, String?) -> Unit
+) {
+    var playlistName by remember { mutableStateOf("") }
+    var playlistDescription by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Create New Playlist")
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = playlistName,
+                    onValueChange = { playlistName = it },
+                    label = { Text("Playlist Name") },
+                    placeholder = { Text("My Awesome Playlist") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                OutlinedTextField(
+                    value = playlistDescription,
+                    onValueChange = { playlistDescription = it },
+                    label = { Text("Description (Optional)") },
+                    placeholder = { Text("A description for your playlist") },
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (playlistName.isNotBlank()) {
+                        onCreatePlaylist(playlistName.trim(), playlistDescription.trim().takeIf { it.isNotBlank() })
+                    }
+                },
+                enabled = playlistName.isNotBlank()
+            ) {
+                Text("Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun PlaylistSelectionDialog(
+    song: Song,
+    onDismiss: () -> Unit,
+    onPlaylistSelected: (com.example.myapplication.data.entity.Playlist) -> Unit
+) {
+    val playlistViewModel: PlaylistViewModel = viewModel()
+    val playlists by playlistViewModel.playlists.collectAsState()
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Add to Playlist")
+        },
+        text = {
+            if (playlists.isEmpty()) {
+                Text("No playlists available. Create a playlist first.")
+            } else {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 300.dp)
+                ) {
+                    items(playlists) { playlist ->
+                        ListItem(
+                            headlineContent = {
+                                Text(playlist.name)
+                            },
+                            supportingContent = {
+                                Text(playlist.description ?: "No description")
+                            },
+                            leadingContent = {
+                                Surface(
+                                    modifier = Modifier.size(40.dp),
+                                    shape = MaterialTheme.shapes.medium,
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlaylistPlay,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.clickable {
+                                onPlaylistSelected(playlist)
+                            }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = playlists.isNotEmpty()
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
+}
 

@@ -17,6 +17,8 @@ import com.example.myapplication.ui.screens.nowplaying.NowPlayingScreen
 import com.example.myapplication.ui.screens.album.AlbumDetailScreen
 import com.example.myapplication.ui.screens.artist.ArtistDetailScreen
 import com.example.myapplication.ui.screens.playlist.PlaylistDetailScreen
+import com.example.myapplication.ui.screens.playlist.PlaylistScreen
+import com.example.myapplication.ui.screens.favorites.FavoritesScreen
 import com.example.myapplication.ui.screens.lyrics.LyricsScreen
 import com.example.myapplication.ui.screens.queue.QueueScreen
 import com.example.myapplication.ui.screens.onboarding.FolderSelectionScreen
@@ -168,6 +170,15 @@ fun NavGraph(
         
         composable(Screen.Onboarding.route) {
             OnboardingScreen(navController = navController)
+        }
+        
+        // Favorites and Playlists screens
+        composable(Screen.Favorites.route) {
+            FavoritesScreen(navController = navController)
+        }
+        
+        composable(Screen.Playlists.route) {
+            PlaylistScreen(navController = navController)
         }
     }
 }

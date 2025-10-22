@@ -31,7 +31,7 @@ import com.example.myapplication.data.entity.SongFts;
                 SongFts.class,
                 com.example.myapplication.data.entity.PlaybackHistory.class
         },
-        version = 1,
+        version = 2,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {

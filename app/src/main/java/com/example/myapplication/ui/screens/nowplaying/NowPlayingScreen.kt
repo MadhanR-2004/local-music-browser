@@ -24,8 +24,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.palette.graphics.Palette
 import com.example.myapplication.ui.components.AlbumArtImage
+import com.example.myapplication.ui.components.ExpressiveIconButton
 import com.example.myapplication.ui.viewmodel.MusicPlayerViewModel
 import com.example.myapplication.ui.viewmodel.NowPlayingViewModel
+import com.example.myapplication.ui.viewmodel.FavoritesViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -39,7 +41,8 @@ fun NowPlayingScreen(
     navController: NavController,
     musicPlayerViewModel: MusicPlayerViewModel,
     modifier: Modifier = Modifier,
-    viewModel: NowPlayingViewModel = viewModel()
+    viewModel: NowPlayingViewModel = viewModel(),
+    favoritesViewModel: FavoritesViewModel = viewModel()
 ) {
     // Use shared MusicPlayerViewModel for playback state
     val currentSong = musicPlayerViewModel.currentSong
@@ -50,8 +53,9 @@ fun NowPlayingScreen(
     val isShuffleEnabled = musicPlayerViewModel.isShuffleEnabled
     val repeatMode = musicPlayerViewModel.repeatMode
     
-    // Local state for like
-    val isLiked by viewModel.isLiked.collectAsState()
+    // Get like status from FavoritesViewModel
+    val favoriteStatus by favoritesViewModel.favoriteStatus.collectAsState()
+    val isLiked = currentSong?.let { favoriteStatus[it.id] ?: false } ?: false
     
     // Extract multiple swatches from album art for expressive background
     var dominantColor by remember { mutableStateOf<Color?>(null) }
@@ -267,7 +271,7 @@ fun NowPlayingScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Shuffle
-                    com.example.myapplication.ui.components.InteractiveIconButton(
+                    ExpressiveIconButton(
                         onClick = { musicPlayerViewModel.toggleShuffle() }
                     ) {
                         Icon(
@@ -319,7 +323,7 @@ fun NowPlayingScreen(
                     }
                     
                     // Repeat
-                    com.example.myapplication.ui.components.InteractiveIconButton(
+                    ExpressiveIconButton(
                         onClick = { musicPlayerViewModel.toggleRepeat() }
                     ) {
                         Icon(
@@ -344,8 +348,12 @@ fun NowPlayingScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    com.example.myapplication.ui.components.InteractiveIconButton(
-                        onClick = { viewModel.toggleLike() }
+                    ExpressiveIconButton(
+                        onClick = { 
+                            currentSong?.let { song ->
+                                favoritesViewModel.toggleFavorite(song)
+                            }
+                        }
                     ) {
                         Icon(
                             imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -357,13 +365,13 @@ fun NowPlayingScreen(
                         )
                     }
                     
-                    com.example.myapplication.ui.components.InteractiveIconButton(
+                    ExpressiveIconButton(
                         onClick = { /* TODO: Share */ }
                     ) {
                         Icon(Icons.Default.Share, "Share")
                     }
                     
-                    com.example.myapplication.ui.components.InteractiveIconButton(
+                    ExpressiveIconButton(
                         onClick = {
                             navController.navigate(com.example.myapplication.ui.navigation.Screen.Queue.route)
                         }
@@ -371,7 +379,7 @@ fun NowPlayingScreen(
                         Icon(Icons.Default.QueueMusic, "Queue")
                     }
                     
-                    com.example.myapplication.ui.components.InteractiveIconButton(
+                    ExpressiveIconButton(
                         onClick = { /* TODO: Lyrics */ }
                     ) {
                         Icon(Icons.Default.Lyrics, "Lyrics")

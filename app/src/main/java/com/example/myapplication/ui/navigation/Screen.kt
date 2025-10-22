@@ -92,6 +92,18 @@ sealed class Screen(
         title = "Welcome",
         icon = Icons.Default.Home
     )
+    
+    object Favorites : Screen(
+        route = "favorites",
+        title = "Liked Songs",
+        icon = Icons.Default.Favorite
+    )
+    
+    object Playlists : Screen(
+        route = "playlists",
+        title = "Playlists",
+        icon = Icons.Default.PlaylistPlay
+    )
 }
 
 // Bottom navigation items

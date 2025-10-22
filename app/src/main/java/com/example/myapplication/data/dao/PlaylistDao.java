@@ -4,8 +4,11 @@ import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
+import androidx.room.Transaction;
 
 import com.example.myapplication.data.entity.Playlist;
+import com.example.myapplication.data.entity.PlaylistSongCrossRef;
+import com.example.myapplication.data.entity.Song;
 
 import java.util.List;
 
@@ -16,6 +19,37 @@ public interface PlaylistDao {
 
     @Query("SELECT * FROM playlists ORDER BY name ASC")
     List<Playlist> getAll();
+    
+    @Query("SELECT * FROM playlists WHERE id = :playlistId")
+    Playlist getById(long playlistId);
+    
+    @Query("DELETE FROM playlists WHERE id = :playlistId")
+    void deleteById(long playlistId);
+    
+    @Query("UPDATE playlists SET name = :newName WHERE id = :playlistId")
+    void updateName(long playlistId, String newName);
+    
+    // PlaylistSongCrossRef methods
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void insertPlaylistSong(PlaylistSongCrossRef crossRef);
+    
+    @Query("DELETE FROM playlist_song_cross_ref WHERE playlistId = :playlistId AND songId = :songId")
+    void removeSongFromPlaylist(long playlistId, long songId);
+    
+    @Query("DELETE FROM playlist_song_cross_ref WHERE playlistId = :playlistId")
+    void clearPlaylist(long playlistId);
+    
+    @Query("SELECT s.* FROM songs s " +
+           "INNER JOIN playlist_song_cross_ref psc ON s.id = psc.songId " +
+           "WHERE psc.playlistId = :playlistId " +
+           "ORDER BY psc.position ASC")
+    List<Song> getSongsInPlaylist(long playlistId);
+    
+    @Query("SELECT COUNT(*) FROM playlist_song_cross_ref WHERE playlistId = :playlistId")
+    int getPlaylistSongCount(long playlistId);
+    
+    @Query("SELECT MAX(position) FROM playlist_song_cross_ref WHERE playlistId = :playlistId")
+    Integer getMaxPosition(long playlistId);
 }
 
 
