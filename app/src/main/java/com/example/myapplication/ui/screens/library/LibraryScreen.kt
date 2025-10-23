@@ -17,8 +17,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.palette.graphics.Palette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.media.MediaMetadataRetriever
+import android.graphics.BitmapFactory
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.myapplication.InitialLoadInitializer
@@ -398,6 +404,11 @@ fun PlaylistsTab(
     
     var showCreateDialog by remember { mutableStateOf(false) }
     
+    // Refresh playlists when this tab is displayed
+    LaunchedEffect(Unit) {
+        playlistViewModel.refresh()
+    }
+    
     if (isLoading) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -406,12 +417,12 @@ fun PlaylistsTab(
             CircularProgressIndicator()
         }
     } else if (playlists.isEmpty()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
                 .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
         ) {
             // Playlist icon with gradient background
             Surface(
@@ -423,27 +434,27 @@ fun PlaylistsTab(
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
-                ) {
-                    Icon(
+    ) {
+        Icon(
                         imageVector = Icons.Default.PlaylistPlay,
-                        contentDescription = null,
+            contentDescription = null,
                         modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+            tint = MaterialTheme.colorScheme.primary
+        )
                 }
             }
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            Text(
+        Text(
                 text = "No Playlists Yet",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onSurface
-            )
+        )
             
-            Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp))
             
-            Text(
+        Text(
                 text = "Create your first playlist to organize your music",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -460,30 +471,55 @@ fun PlaylistsTab(
                     imageVector = Icons.Default.Add,
                     contentDescription = null
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Create Playlist")
-            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Create Playlist")
+        }
         }
     } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            items(playlists) { playlist ->
-                PlaylistItem(
-                    playlist = playlist,
-                    onPlaylistClick = { 
-                        navController.navigate("playlist/${playlist.id}")
-                    },
-                    onPlayAll = { 
-                        // TODO: Play all songs in playlist
-                    },
-                    onShuffle = {
-                        // TODO: Shuffle all songs in playlist
-                    },
-                    onMoreClick = { /* TODO: Show playlist options */ }
+            // Top bar with add button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Your Playlists",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+                
+                ExpressiveIconButton(
+                    onClick = { showCreateDialog = true }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Create playlist"
+                    )
+                }
+            }
+            
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(playlists) { playlist ->
+                    PlaylistItem(
+                        playlist = playlist,
+                        onPlaylistClick = { 
+                            navController.navigate("playlist/${playlist.id}")
+                        },
+                        onMoreClick = { /* TODO: Show playlist options */ },
+                        navController = navController
+                    )
+                }
             }
         }
     }
@@ -551,10 +587,10 @@ fun LikedTab(
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
-                ) {
-                    Icon(
+        ) {
+            Icon(
                         imageVector = Icons.Default.Favorite,
-                        contentDescription = null,
+                contentDescription = null,
                         modifier = Modifier.size(48.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -639,7 +675,7 @@ fun LikedTab(
                 }
                 item {
                     Spacer(modifier = Modifier.height(80.dp))
-                }
+            }
             }
         }
     }
@@ -820,7 +856,8 @@ fun SongListItem(
             onPlaylistSelected = { playlist ->
                 playlistViewModel?.addSongToPlaylist(playlist, song)
                 showPlaylistDialog = false
-            }
+            },
+            playlistViewModel = playlistViewModel
         )
     }
 }
@@ -943,89 +980,241 @@ fun EmptyLibraryState(message: String) {
 fun PlaylistItem(
     playlist: com.example.myapplication.data.entity.Playlist,
     onPlaylistClick: () -> Unit,
-    onPlayAll: () -> Unit,
-    onShuffle: () -> Unit,
     onMoreClick: () -> Unit,
+    navController: NavController,
     modifier: Modifier = Modifier
 ) {
-    ExpressiveCard(
-        onClick = onPlaylistClick,
-        modifier = modifier.fillMaxWidth()
+    var showMenu by remember { mutableStateOf(false) }
+    
+    // Get playlist songs and count directly from database
+    val playlistViewModel: PlaylistViewModel = viewModel()
+    var songCount by remember { mutableStateOf(0) }
+    var playlistSongs by remember { mutableStateOf<List<com.example.myapplication.data.entity.Song>>(emptyList()) }
+    
+    // Get context outside of LaunchedEffect
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
+    // Load songs when this item is displayed
+    LaunchedEffect(playlist.id) {
+        try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val songs = com.example.myapplication.data.DatabaseProvider.get(context)
+                    .playlistDao().getSongsInPlaylist(playlist.id)
+                playlistSongs = songs.take(4) // Get first 4 songs
+                songCount = songs.size
+            }
+        } catch (e: Exception) {
+            songCount = 0
+            playlistSongs = emptyList()
+        }
+    }
+    
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPlaylistClick),
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // Playlist cover (placeholder for now)
-            Surface(
+            // Large square album-style cover with 4 thumbnails
+            Box(
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(MaterialTheme.shapes.medium),
-                color = MaterialTheme.colorScheme.surfaceVariant
+                    .fillMaxWidth()
+                    .aspectRatio(1f) // Square aspect ratio
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlaylistPlay,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                if (playlistSongs.isNotEmpty()) {
+                    // Show 2x2 grid of album art thumbnails
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        // Top row (2 thumbnails)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            // Top-left thumbnail
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            ) {
+                                if (playlistSongs.size > 0) {
+                                    AlbumArtImage(
+                                        filePath = playlistSongs[0].path,
+                                        contentDescription = "Album art 1",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+                            // Top-right thumbnail
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            ) {
+                                if (playlistSongs.size > 1) {
+                                    AlbumArtImage(
+                                        filePath = playlistSongs[1].path,
+                                        contentDescription = "Album art 2",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    // Placeholder
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Bottom row (2 thumbnails)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            // Bottom-left thumbnail
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            ) {
+                                if (playlistSongs.size > 2) {
+                                    AlbumArtImage(
+                                        filePath = playlistSongs[2].path,
+                                        contentDescription = "Album art 3",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    // Placeholder
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    )
+                                }
+                            }
+                            // Bottom-right thumbnail
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            ) {
+                                if (playlistSongs.size > 3) {
+                                    AlbumArtImage(
+                                        filePath = playlistSongs[3].path,
+                                        contentDescription = "Album art 4",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    // Placeholder
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback icon when no songs
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlaylistPlay,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
             
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            // Playlist info
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = playlist.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "0 songs", // TODO: Get actual count
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            // Action buttons
+            // Playlist info below the square
             Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                ExpressiveIconButton(
-                    onClick = onPlayAll
+                Column(
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play all"
+                    Text(
+                        text = playlist.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    
+                    if (playlist.description != null && playlist.description.isNotBlank()) {
+                        Text(
+                            text = playlist.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    
+                    Text(
+                        text = "$songCount songs",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 
-                ExpressiveIconButton(
-                    onClick = onShuffle
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Shuffle,
-                        contentDescription = "Shuffle"
-                    )
-                }
-                
-                ExpressiveIconButton(
-                    onClick = onMoreClick
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More options"
-                    )
+                // More options menu
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit Playlist") },
+                            onClick = {
+                                showMenu = false
+                                navController.navigate("playlist/${playlist.id}")
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Edit, contentDescription = null)
+                            }
+                        )
+                        
+                        DropdownMenuItem(
+                            text = { Text("Delete Playlist") },
+                            onClick = {
+                                showMenu = false
+                                playlistViewModel.deletePlaylist(playlist)
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Delete, contentDescription = null)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1092,10 +1281,11 @@ fun CreatePlaylistDialog(
 fun PlaylistSelectionDialog(
     song: Song,
     onDismiss: () -> Unit,
-    onPlaylistSelected: (com.example.myapplication.data.entity.Playlist) -> Unit
+    onPlaylistSelected: (com.example.myapplication.data.entity.Playlist) -> Unit,
+    playlistViewModel: PlaylistViewModel? = null
 ) {
-    val playlistViewModel: PlaylistViewModel = viewModel()
-    val playlists by playlistViewModel.playlists.collectAsState()
+    val viewModel: PlaylistViewModel = playlistViewModel ?: viewModel()
+    val playlists by viewModel.playlists.collectAsState()
     
     AlertDialog(
         onDismissRequest = onDismiss,

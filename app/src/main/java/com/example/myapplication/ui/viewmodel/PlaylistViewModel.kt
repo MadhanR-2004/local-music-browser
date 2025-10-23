@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * ViewModel for Playlist management functionality
@@ -38,7 +39,8 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     
     init {
-        loadPlaylists()
+        // Don't automatically load all playlists - only load when explicitly requested
+        _isLoading.value = false
     }
     
     private fun loadPlaylists() {
@@ -269,6 +271,17 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
     fun refresh() {
         _isLoading.value = true
         loadPlaylists()
+    }
+    
+    suspend fun getPlaylistSongCount(playlistId: Long): Int {
+        return withContext(Dispatchers.IO) {
+            try {
+                playlistDao.getPlaylistSongCount(playlistId)
+            } catch (e: Exception) {
+                android.util.Log.e("PlaylistViewModel", "Error getting playlist song count", e)
+                0
+            }
+        }
     }
 }
 

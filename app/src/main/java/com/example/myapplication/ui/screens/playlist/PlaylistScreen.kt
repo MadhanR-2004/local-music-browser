@@ -292,164 +292,6 @@ fun SystemPlaylistCard(
 fun PlaylistItem(
     playlist: Playlist,
     onPlaylistClick: () -> Unit,
-    onPlayAll: () -> Unit,
-    onShuffle: () -> Unit,
-    onMoreClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    ExpressiveCard(
-        onClick = onPlaylistClick,
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Playlist cover (placeholder for now)
-            Surface(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(MaterialTheme.shapes.medium),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlaylistPlay,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            // Playlist info
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = playlist.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "0 songs", // TODO: Get actual count
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            // Action buttons
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                ExpressiveIconButton(
-                    onClick = onPlayAll
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play all"
-                    )
-                }
-                
-                ExpressiveIconButton(
-                    onClick = onShuffle
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Shuffle,
-                        contentDescription = "Shuffle"
-                    )
-                }
-                
-                ExpressiveIconButton(
-                    onClick = onMoreClick
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More options"
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun EmptyPlaylistsState(
-    onCreatePlaylist: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // Playlist icon with gradient background
-        Surface(
-            modifier = Modifier
-                .size(120.dp)
-                .clip(CircleShape),
-            color = MaterialTheme.colorScheme.primaryContainer
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlaylistPlay,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Text(
-            text = "No Playlists Yet",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = "Create your first playlist to organize your music",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        ExpressiveButton(
-            onClick = onCreatePlaylist,
-            isPrimary = true
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = null
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Create Playlist")
-        }
-    }
-}
-
-@Composable
-fun PlaylistItem(
-    playlist: Playlist,
-    onPlaylistClick: () -> Unit,
     onMoreClick: () -> Unit,
     navController: NavController
 ) {
@@ -568,9 +410,9 @@ fun PlaylistItem(
                         )
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.width(16.dp))
-                
+
                 // Playlist info
                 Column(
                     modifier = Modifier.weight(1f)
@@ -582,7 +424,7 @@ fun PlaylistItem(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    
+
                     if (playlist.description != null && playlist.description.isNotBlank()) {
                         Text(
                             text = playlist.description,
@@ -592,14 +434,14 @@ fun PlaylistItem(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    
+
                     Text(
                         text = "${playlistSongs.size} songs",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                     )
                 }
-                
+
                 // More options menu
                 Box {
                     IconButton(onClick = { showMenu = true }) {
@@ -609,7 +451,7 @@ fun PlaylistItem(
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
-                    
+
                     DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
@@ -641,6 +483,72 @@ fun PlaylistItem(
         }
     }
 }
+
+@Composable
+fun EmptyPlaylistsState(
+    onCreatePlaylist: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Playlist icon with gradient background
+        Surface(
+            modifier = Modifier
+                .size(120.dp)
+                .clip(CircleShape),
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlaylistPlay,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Text(
+            text = "No Playlists Yet",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = "Create your first playlist to organize your music",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        ExpressiveButton(
+            onClick = onCreatePlaylist,
+            isPrimary = true
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Create Playlist")
+        }
+    }
+}
+
 
 @Composable
 fun CreatePlaylistDialog(

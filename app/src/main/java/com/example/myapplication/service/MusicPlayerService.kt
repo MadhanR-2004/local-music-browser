@@ -129,23 +129,43 @@ class MusicPlayerService : Service() {
     
     private fun initializePlayer() {
         exoPlayer = ExoPlayer.Builder(this).build().apply {
+            // Set playWhenReady to false initially to prevent auto-play issues
+            playWhenReady = false
+            
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
+                    Log.d(TAG, "ExoPlayer state changed: $playbackState (IDLE=1, BUFFERING=2, READY=3, ENDED=4)")
                     when (playbackState) {
                         Player.STATE_READY -> {
+                            Log.d(TAG, "ExoPlayer ready to play")
                             notifyListeners { onPlaybackStateChanged(true) }
                             updateMediaSessionPlaybackState()
                         }
                         Player.STATE_ENDED -> {
+                            Log.d(TAG, "ExoPlayer reached end of current media item")
                             handleSongEnded()
+                        }
+                        Player.STATE_BUFFERING -> {
+                            Log.d(TAG, "ExoPlayer buffering")
+                        }
+                        Player.STATE_IDLE -> {
+                            Log.d(TAG, "ExoPlayer idle")
                         }
                     }
                 }
                 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    Log.d(TAG, "ExoPlayer isPlaying changed: $isPlaying")
                     notifyListeners { onPlaybackStateChanged(isPlaying) }
                     updateMediaSessionPlaybackState()
                     updateNotification()
+                }
+                
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    Log.e(TAG, "ExoPlayer error: ${error.message}", error)
+                    notifyListeners { onError("Playback error: ${error.message}") }
+                    // Try to play next song on error
+                    playNext()
                 }
             })
         }
@@ -153,28 +173,34 @@ class MusicPlayerService : Service() {
     }
     
     private fun handleSongEnded() {
+        Log.d(TAG, "handleSongEnded: Current song ended - ${currentSong?.title}")
+        Log.d(TAG, "handleSongEnded: Repeat mode = $repeatMode, currentIndex = $currentIndex, playlist size = ${playlist.size}")
+        Log.d(TAG, "handleSongEnded: originalContextPlaylist size = ${originalContextPlaylist.size}, lastPlayedContextIndex = $lastPlayedContextIndex")
+        
         when (repeatMode) {
             2 -> {
                 // Repeat one - replay current song
-                currentSong?.let { playSong(it) }
+                Log.d(TAG, "handleSongEnded: Repeat One - replaying current song")
+                currentSong?.let { 
+                    exoPlayer?.seekTo(0)
+                    play()
+                }
             }
             1 -> {
-                // Repeat all - play next (will loop to start)
+                // Repeat all - always play next (will loop to start when needed)
+                Log.d(TAG, "handleSongEnded: Repeat All - playing next song")
                 playNext()
             }
             else -> {
-                // No repeat - play next if not at end
-                if (currentIndex < playlist.size - 1) {
+                // No repeat - use circular navigation in original context
+                if (originalContextPlaylist.isNotEmpty()) {
+                    // Always play next in circular navigation
+                    Log.d(TAG, "handleSongEnded: No Repeat - advancing to next song in context")
                     playNext()
                 } else {
-                    // Check if we need to loop back to context
-                    if (shouldLoopToContext()) {
-                        loopToContextStart()
-                        playNext()
-                    } else {
-                        // Reached end of everything, stop
-                        pause()
-                    }
+                    // No context playlist, just stop
+                    Log.d(TAG, "handleSongEnded: No context playlist, stopping playback")
+                    pause()
                 }
             }
         }
