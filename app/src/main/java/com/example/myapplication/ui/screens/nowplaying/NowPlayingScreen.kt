@@ -50,7 +50,8 @@ fun NowPlayingScreen(
     val progress = musicPlayerViewModel.progress
     val currentPosition = musicPlayerViewModel.currentPosition
     val albumArt = musicPlayerViewModel.albumArt
-    val isShuffleEnabled = musicPlayerViewModel.isShuffleEnabled
+    
+    // Use service's existing repeat state, custom shuffle state
     val repeatMode = musicPlayerViewModel.repeatMode
     
     // Get like status from FavoritesViewModel
@@ -92,6 +93,30 @@ fun NowPlayingScreen(
     LaunchedEffect(Unit) {
         viewModel.setMusicPlayerViewModel(musicPlayerViewModel)
     }
+    
+    // Monitor song completion for repeat logic
+    LaunchedEffect(currentSong, repeatMode) {
+        // This will trigger when song changes or repeat mode changes
+        // The actual repeat logic will be handled by the service's existing logic
+        android.util.Log.d("NowPlayingScreen", "Song changed or repeat mode changed - service will handle repeat logic")
+    }
+    
+    // Use service's custom shuffle functionality
+    val isShuffleActive = musicPlayerViewModel.getCustomShuffleEnabled()
+    
+    // Custom shuffle logic that works with service
+    fun toggleShuffle() {
+        val newShuffleState = !isShuffleActive
+        musicPlayerViewModel.setCustomShuffleEnabled(newShuffleState)
+        android.util.Log.d("NowPlayingScreen", "Custom shuffle toggled via service: $newShuffleState")
+    }
+    
+    fun toggleRepeat() {
+        musicPlayerViewModel.toggleRepeat()
+        android.util.Log.d("NowPlayingScreen", "Repeat toggled via service: $repeatMode")
+    }
+    
+    // Service handles all repeat logic automatically
     
     // Animated background colors - build a 3-stop gradient
     val topTarget = (vibrantColor ?: dominantColor)
@@ -272,12 +297,12 @@ fun NowPlayingScreen(
                 ) {
                     // Shuffle
                     ExpressiveIconButton(
-                        onClick = { musicPlayerViewModel.toggleShuffle() }
+                        onClick = { toggleShuffle() }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Shuffle,
                             contentDescription = "Shuffle",
-                            tint = if (isShuffleEnabled) 
+                            tint = if (isShuffleActive) 
                                 MaterialTheme.colorScheme.primary 
                             else 
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -324,7 +349,7 @@ fun NowPlayingScreen(
                     
                     // Repeat
                     ExpressiveIconButton(
-                        onClick = { musicPlayerViewModel.toggleRepeat() }
+                        onClick = { toggleRepeat() }
                     ) {
                         Icon(
                             imageVector = when (repeatMode) {

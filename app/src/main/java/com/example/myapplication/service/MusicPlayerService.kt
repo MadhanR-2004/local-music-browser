@@ -587,6 +587,39 @@ class MusicPlayerService : Service() {
     fun getRegularQueue(): List<Song> = regularQueue.toList()
     fun getOriginalContext(): List<Song> = originalContextPlaylist.toList()
     
+    // Simple shuffle logic using modulo
+    private var isCustomShuffleEnabled = false
+    
+    fun setCustomShuffleEnabled(enabled: Boolean) {
+        isCustomShuffleEnabled = enabled
+        Log.d(TAG, "Custom shuffle ${if (enabled) "enabled" else "disabled"}")
+    }
+    
+    // Override playNext to use modulo logic when shuffle is enabled
+    fun playNextWithShuffle() {
+        if (isCustomShuffleEnabled) {
+            // Use modulo logic for shuffle - just cycle through current queue
+            currentIndex = (currentIndex + 1) % playlist.size
+            Log.d(TAG, "Shuffle next: currentIndex = $currentIndex")
+        } else {
+            // Normal playNext
+            playNext()
+        }
+    }
+    
+    fun playPreviousWithShuffle() {
+        if (isCustomShuffleEnabled) {
+            // Use modulo logic for shuffle - just cycle through current queue
+            currentIndex = if (currentIndex - 1 < 0) playlist.size - 1 else currentIndex - 1
+            Log.d(TAG, "Shuffle previous: currentIndex = $currentIndex")
+        } else {
+            // Normal playPrevious
+            playPrevious()
+        }
+    }
+    
+    fun getCustomShuffleEnabled(): Boolean = isCustomShuffleEnabled
+    
     private fun cleanupPlayedSong() {
         val current = currentSong
         if (current == null) return

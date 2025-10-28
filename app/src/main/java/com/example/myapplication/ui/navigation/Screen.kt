@@ -87,6 +87,12 @@ sealed class Screen(
         icon = Icons.Default.Folder
     )
     
+    object SettingsFolderSelection : Screen(
+        route = "settings_folder_selection",
+        title = "Music Folders",
+        icon = Icons.Default.Folder
+    )
+    
     object Onboarding : Screen(
         route = "onboarding",
         title = "Welcome",

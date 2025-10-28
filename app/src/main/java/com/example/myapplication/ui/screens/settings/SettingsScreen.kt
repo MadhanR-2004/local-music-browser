@@ -1,9 +1,4 @@
 package com.example.myapplication.ui.screens.settings
-import androidx.compose.ui.platform.LocalContext
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.content.Intent
-import android.content.Context
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.myapplication.ui.navigation.Screen
 import com.example.myapplication.ui.viewmodel.SettingsViewModel
 
 /**
@@ -35,33 +32,14 @@ fun SettingsScreen(
     val crossfadeDuration by viewModel.crossfadeDuration.collectAsState()
     val folderCount by viewModel.selectedFolderCount.collectAsState()
     
-    // Folder picker launcher
-    val context = LocalContext.current
-    val folderPickerLauncher = rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            // Persist permission
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-            // Save to SharedPreferences
-            val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-            val folders = prefs.getStringSet("music_folder_paths", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-            folders.add(uri.toString())
-            prefs.edit().putStringSet("music_folder_paths", folders).apply()
-            // Update ViewModel
-            viewModel.loadSettings()
-        }
+    // Track navigation to refresh settings when returning from folder selection
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    LaunchedEffect(navBackStackEntry) {
+        // Refresh settings when returning to this screen
+        viewModel.loadSettings()
+        android.util.Log.d("SettingsScreen", "Refreshed settings after navigation")
     }
-
-    // Set ViewModel callback for launching picker
-    LaunchedEffect(Unit) {
-        viewModel.onLaunchFolderPicker = {
-            folderPickerLauncher.launch(null)
-        }
-    }
+    
 
     Scaffold(
         topBar = {
@@ -110,8 +88,8 @@ fun SettingsScreen(
                     title = "Music Folders",
                     subtitle = "$folderCount folders selected",
                     onClick = {
-                        // Launch SAF folder picker, similar to onboarding
-                        viewModel.launchFolderPicker()
+                        // Navigate to folder selection screen
+                        navController.navigate(Screen.SettingsFolderSelection.route)
                     }
                 )
             }

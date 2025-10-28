@@ -165,7 +165,17 @@ fun NavGraph(
         }
         
         composable(Screen.FolderSelection.route) {
-            FolderSelectionScreen(navController = navController)
+            FolderSelectionScreen(
+                navController = navController,
+                isOnboarding = true
+            )
+        }
+        
+        composable(Screen.SettingsFolderSelection.route) {
+            FolderSelectionScreen(
+                navController = navController,
+                isOnboarding = false
+            )
         }
         
         composable(Screen.Onboarding.route) {

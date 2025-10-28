@@ -985,6 +985,8 @@ fun PlaylistItem(
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     
     // Get playlist songs and count directly from database
     val playlistViewModel: PlaylistViewModel = viewModel()
@@ -1197,7 +1199,7 @@ fun PlaylistItem(
                             text = { Text("Edit Playlist") },
                             onClick = {
                                 showMenu = false
-                                navController.navigate("playlist/${playlist.id}")
+                                showEditDialog = true
                             },
                             leadingIcon = {
                                 Icon(Icons.Default.Edit, contentDescription = null)
@@ -1208,7 +1210,7 @@ fun PlaylistItem(
                             text = { Text("Delete Playlist") },
                             onClick = {
                                 showMenu = false
-                                playlistViewModel.deletePlaylist(playlist)
+                                showDeleteDialog = true
                             },
                             leadingIcon = {
                                 Icon(Icons.Default.Delete, contentDescription = null)
@@ -1218,6 +1220,30 @@ fun PlaylistItem(
                 }
             }
         }
+    }
+    
+    // Edit Playlist Dialog
+    if (showEditDialog) {
+        EditPlaylistDialog(
+            playlist = playlist,
+            onDismiss = { showEditDialog = false },
+            onUpdatePlaylist = { newName, newDescription ->
+                playlistViewModel.updatePlaylist(playlist, newName, newDescription)
+                showEditDialog = false
+            }
+        )
+    }
+    
+    // Delete Playlist Dialog
+    if (showDeleteDialog) {
+        DeletePlaylistDialog(
+            playlist = playlist,
+            onDismiss = { showDeleteDialog = false },
+            onDeletePlaylist = {
+                playlistViewModel.deletePlaylist(playlist)
+                showDeleteDialog = false
+            }
+        )
     }
 }
 
@@ -1339,6 +1365,95 @@ fun PlaylistSelectionDialog(
                 onClick = onDismiss,
                 enabled = playlists.isNotEmpty()
             ) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun EditPlaylistDialog(
+    playlist: com.example.myapplication.data.entity.Playlist,
+    onDismiss: () -> Unit,
+    onUpdatePlaylist: (String, String?) -> Unit
+) {
+    var playlistName by remember { mutableStateOf(playlist.name) }
+    var playlistDescription by remember { mutableStateOf(playlist.description ?: "") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Edit Playlist")
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = playlistName,
+                    onValueChange = { playlistName = it },
+                    label = { Text("Playlist Name") },
+                    placeholder = { Text("My Awesome Playlist") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                OutlinedTextField(
+                    value = playlistDescription,
+                    onValueChange = { playlistDescription = it },
+                    label = { Text("Description (Optional)") },
+                    placeholder = { Text("A description for your playlist") },
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (playlistName.isNotBlank()) {
+                        onUpdatePlaylist(playlistName.trim(), playlistDescription.trim().takeIf { it.isNotBlank() })
+                    }
+                },
+                enabled = playlistName.isNotBlank()
+            ) {
+                Text("Update")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun DeletePlaylistDialog(
+    playlist: com.example.myapplication.data.entity.Playlist,
+    onDismiss: () -> Unit,
+    onDeletePlaylist: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Delete Playlist")
+        },
+        text = {
+            Text("Are you sure you want to delete \"${playlist.name}\"? This action cannot be undone.")
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onDeletePlaylist,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
         }

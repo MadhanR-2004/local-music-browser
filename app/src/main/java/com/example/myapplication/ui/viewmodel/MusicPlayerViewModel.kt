@@ -300,6 +300,16 @@ class MusicPlayerViewModel(application: Application) : AndroidViewModel(applicat
         return musicService?.getOriginalContext() ?: emptyList()
     }
     
+    // New custom shuffle methods that work with service
+    fun setCustomShuffleEnabled(enabled: Boolean) {
+        musicService?.setCustomShuffleEnabled(enabled)
+        android.util.Log.d(TAG, "Custom shuffle set to: $enabled")
+    }
+    
+    fun getCustomShuffleEnabled(): Boolean {
+        return musicService?.getCustomShuffleEnabled() ?: false
+    }
+    
     /**
      * Gets the original context (album/playlist) in the correct sorted order
      * This should be called from UI components that need the sorted context

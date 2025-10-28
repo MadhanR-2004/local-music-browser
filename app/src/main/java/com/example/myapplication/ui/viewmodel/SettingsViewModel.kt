@@ -60,7 +60,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         
         // Count selected folders
         val folders = sharedPrefs.getStringSet("music_folder_paths", emptySet())
-        _selectedFolderCount.value = folders?.size ?: 0
+        val folderCount = folders?.size ?: 0
+        _selectedFolderCount.value = folderCount
+        
+        android.util.Log.d("SettingsViewModel", "Loaded settings - folder count: $folderCount, folders: $folders")
     }
     
     fun toggleDynamicColors() {

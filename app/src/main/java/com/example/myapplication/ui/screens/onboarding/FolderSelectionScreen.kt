@@ -1,11 +1,7 @@
 package com.example.myapplication.ui.screens.onboarding
 
 import android.content.Context
-import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,38 +13,59 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.myapplication.ui.navigation.Screen
+import com.example.myapplication.ui.components.FolderCheckboxItem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Folder Selection Screen - Multi-select music folders
- * Material 3 Expressive Design
+ * Works exactly like onboarding folder selection
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FolderSelectionScreen(
     navController: NavController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isOnboarding: Boolean = false
 ) {
     val context = LocalContext.current
     val sharedPrefs = remember {
         context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
     }
     
-    var selectedFolders by remember {
-        mutableStateOf<Set<String>>(
-            sharedPrefs.getStringSet("music_folder_paths", emptySet()) ?: emptySet()
-        )
+    // Scan for folders that actually exist on the device
+    var folderItems by remember {
+        mutableStateOf<List<FolderItem>>(emptyList())
     }
     
-    // Folder picker launcher
-    val folderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        uri?.let {
-            selectedFolders = selectedFolders + it.toString()
+    var isScanning by remember { mutableStateOf(true) }
+    
+    val selectedCount = folderItems.count { it.isSelected }
+    
+    // Load previously selected folders and scan for existing folders
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            // Get previously selected folders
+            val previouslySelected = sharedPrefs.getStringSet("music_folder_paths", emptySet()) ?: emptySet()
+            
+            // Scan for existing folders
+            val foundFolders = scanForMusicFolders()
+            
+            withContext(Dispatchers.Main) {
+                // Only select folders that were previously selected during onboarding
+                val mergedFolders = foundFolders.map { folder ->
+                    folder.copy(isSelected = folder.path in previouslySelected)
+                }
+                
+                folderItems = mergedFolders
+                isScanning = false
+                android.util.Log.d("FolderSelectionScreen", "Found ${foundFolders.size} existing folders, ${previouslySelected.size} previously selected")
+            }
         }
     }
     
@@ -56,56 +73,82 @@ fun FolderSelectionScreen(
         contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             TopAppBar(
-                title = { Text("Select Music Folders") },
+                title = { 
+                    Text(
+                        if (isOnboarding) "Select Music Folders" else "Music Folders"
+                    ) 
+                },
                 navigationIcon = {
-                    if (selectedFolders.isNotEmpty()) {
-                        IconButton(onClick = { navController.navigateUp() }) {
-                            Icon(Icons.Default.ArrowBack, "Back")
-                        }
+                    IconButton(onClick = { navController.navigateUp() }) {
+                        Icon(Icons.Default.ArrowBack, "Back")
                     }
-                }
-            )
-        },
-        bottomBar = {
-            if (selectedFolders.isNotEmpty()) {
-                Surface(
-                    tonalElevation = 3.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                },
+                actions = {
+                    // Move buttons to top bar
                     Row(
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
                             onClick = {
-                                selectedFolders = emptySet()
-                            },
-                            modifier = Modifier.weight(1f)
+                                folderItems = folderItems.map { it.copy(isSelected = false) }
+                            }
                         ) {
                             Text("Clear All")
                         }
                         
                         FilledTonalButton(
                             onClick = {
-                                // Save and continue
-                                sharedPrefs.edit()
-                                    .putStringSet("music_folder_paths", selectedFolders)
-                                    .putBoolean("onboarding_done", true)
-                                    .apply()
+                                // Get selected folder paths
+                                val selectedPaths = folderItems
+                                    .filter { it.isSelected }
+                                    .map { it.path }
+                                    .toSet()
                                 
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo(0) { inclusive = true }
+                                // Save folders
+                                sharedPrefs.edit()
+                                    .putStringSet("music_folder_paths", selectedPaths)
+                                    .commit()
+                                
+                                android.util.Log.d("FolderSelectionScreen", "Saved ${selectedPaths.size} folders: $selectedPaths")
+                                
+                                if (isOnboarding) {
+                                    // Complete onboarding
+                                    sharedPrefs.edit()
+                                        .putBoolean("onboarding_done", true)
+                                        .apply()
+                                    
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                } else {
+                                    // Show toast notification
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Rescanning library...",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                    
+                                    // Trigger WorkManager-based rescan (adds/removes diffs)
+                                    try {
+                                        val wm = androidx.work.WorkManager.getInstance(context.applicationContext)
+                                        val request = androidx.work.OneTimeWorkRequestBuilder<com.example.myapplication.worker.MusicScanWorker>()
+                                            .build()
+                                        wm.enqueue(request)
+                                        android.util.Log.d("SettingsFolderSelection", "Enqueued MusicScanWorker for rescan")
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("SettingsFolderSelection", "Failed to enqueue MusicScanWorker", e)
+                                    }
+                                    
+                                    // Return to settings
+                                    navController.navigateUp()
                                 }
-                            },
-                            modifier = Modifier.weight(1f)
+                            }
                         ) {
-                            Text("Done (${selectedFolders.size})")
+                            Text("Done ($selectedCount)")
                         }
                     }
                 }
-            }
+            )
         }
     ) { paddingValues ->
         Column(
@@ -126,73 +169,101 @@ fun FolderSelectionScreen(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "Choose Your Music",
+                        text = if (isOnboarding) "Choose Your Music" else "Manage Music Folders",
                         style = MaterialTheme.typography.titleLarge
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Select folders containing your music. We'll scan them for audio files.",
+                        text = if (isOnboarding) 
+                            "Select folders containing your music. We'll scan them for audio files."
+                        else 
+                            "Add or remove folders containing your music files. Changes will trigger a library rescan.",
                         style = MaterialTheme.typography.bodyMedium
+                    )
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Text(
+                        text = "$selectedCount folder(s) selected",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
             
-            // Add Folder Button
-            FilledTonalButton(
-                onClick = { folderPicker.launch(null) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Icon(Icons.Default.Add, "Add", modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Folder")
-            }
-            
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Selected Folders List
-            if (selectedFolders.isEmpty()) {
-                // Empty state
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
+            // Folder list with checkboxes
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                if (isScanning) {
+                    // Show loading while scanning for folders
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FolderOpen,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No folders selected",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = "Tap 'Add Folder' to get started",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            CircularProgressIndicator()
+                            Text(
+                                text = "Scanning for music folders...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
-                }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(selectedFolders.toList()) { folder ->
-                        FolderListItem(
-                            path = folder,
-                            onRemove = {
-                                selectedFolders = selectedFolders - folder
-                            }
-                        )
+                } else if (folderItems.isEmpty()) {
+                    // No folders found
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "No music folders found",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "Make sure you have audio files on your device",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(folderItems.size) { index ->
+                            val folder = folderItems[index]
+                            FolderCheckboxItem(
+                                folder = folder,
+                                onCheckedChange = { checked ->
+                                    folderItems = folderItems.toMutableList().also {
+                                        it[index] = folder.copy(isSelected = checked)
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -200,42 +271,3 @@ fun FolderSelectionScreen(
     }
 }
 
-@Composable
-fun FolderListItem(
-    path: String,
-    onRemove: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        ListItem(
-            headlineContent = {
-                Text(
-                    text = path.substringAfterLast("/"),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            supportingContent = {
-                Text(
-                    text = path,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            },
-            leadingContent = {
-                Icon(
-                    Icons.Default.Folder,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            },
-            trailingContent = {
-                IconButton(onClick = onRemove) {
-                    Icon(Icons.Default.Close, "Remove")
-                }
-            }
-        )
-    }
-}
