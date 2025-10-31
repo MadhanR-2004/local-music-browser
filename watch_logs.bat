@@ -20,3 +20,4 @@ adb logcat -v time | findstr /I "PathBasedScanner InitialLoadInitializer HomeVie
 
 
 
+

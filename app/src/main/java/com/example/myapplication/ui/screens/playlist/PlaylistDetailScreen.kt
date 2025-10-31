@@ -22,7 +22,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,6 +63,10 @@ fun PlaylistDetailScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var isReorderMode by remember { mutableStateOf(false) }
+    var reorderWorkingList by remember(playlistSongs, isReorderMode) {
+        mutableStateOf(playlistSongs.toList())
+    }
     
     // Load playlist when screen appears
     LaunchedEffect(playlistId) {
@@ -83,6 +91,15 @@ fun PlaylistDetailScreen(
                             text = currentPlaylist?.name ?: "Playlist",
                             style = MaterialTheme.typography.headlineLarge
                         )
+                        if (!currentPlaylist?.description.isNullOrBlank()) {
+                            Text(
+                                text = currentPlaylist?.description ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                         if (playlistSongs.isNotEmpty()) {
                             Text(
                                 text = "${playlistSongs.size} songs",
@@ -138,10 +155,11 @@ fun PlaylistDetailScreen(
                             )
                             
                             DropdownMenuItem(
-                                text = { Text("Reorder Songs") },
+                                text = { Text(if (isReorderMode) "Done Reordering" else "Reorder Songs") },
                                 onClick = {
                                     showMoreMenu = false
-                                    // TODO: Implement reorder functionality
+                                    isReorderMode = !isReorderMode
+                                    reorderWorkingList = playlistSongs.toMutableList()
                                 },
                                 leadingIcon = {
                                     Icon(Icons.Default.SwapVert, contentDescription = null)
@@ -192,54 +210,120 @@ fun PlaylistDetailScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Action buttons
-                item {
-                    PlaylistActionButtons(
-                        onPlayAll = {
-                            if (playlistSongs.isNotEmpty()) {
-                                musicPlayerViewModel.playSong(playlistSongs[0], customPlaylist = playlistSongs)
-                            }
-                        },
-                        onShuffle = {
-                            if (playlistSongs.isNotEmpty()) {
-                                val shuffledSongs = playlistSongs.shuffled()
-                                musicPlayerViewModel.playSong(shuffledSongs[0], customPlaylist = shuffledSongs)
-                                musicPlayerViewModel.toggleShuffle()
-                            }
-                        },
-                        onAddToQueue = {
-                            // TODO: Add all songs to queue
+                if (isReorderMode) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ExpressiveButton(
+                                onClick = {
+                                    currentPlaylist?.let { playlist ->
+                                        viewModel.persistReorderedList(playlist, reorderWorkingList)
+                                        isReorderMode = false
+                                    }
+                                },
+                                isPrimary = true,
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Save") }
+                            ExpressiveButton(
+                                onClick = {
+                                    isReorderMode = false
+                                },
+                                isPrimary = false,
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Cancel") }
                         }
-                    )
+                    }
+                }
+                // Action buttons
+                if (!isReorderMode) {
+                    item {
+                        PlaylistActionButtons(
+                            onPlayAll = {
+                                if (playlistSongs.isNotEmpty()) {
+                                    musicPlayerViewModel.playSong(playlistSongs[0], customPlaylist = playlistSongs)
+                                }
+                            },
+                            onShuffle = {
+                                if (playlistSongs.isNotEmpty()) {
+                                    val shuffledSongs = playlistSongs.shuffled()
+                                    musicPlayerViewModel.playSong(shuffledSongs[0], customPlaylist = shuffledSongs)
+                                    musicPlayerViewModel.toggleShuffle()
+                                }
+                            },
+                            onAddToQueue = {
+                                // TODO: Add all songs to queue
+                            }
+                        )
+                    }
                 }
                 
                 // Songs list
                 items(
-                    items = playlistSongs,
+                    items = if (isReorderMode) reorderWorkingList else playlistSongs,
                     key = { song -> song.id }
                 ) { song ->
-                    PlaylistSongItem(
-                        song = song,
-                        onSongClick = { 
-                            musicPlayerViewModel.playSong(song, customPlaylist = playlistSongs)
-                        },
-                        onRemoveFromPlaylist = {
-                            currentPlaylist?.let { playlist ->
-                                viewModel.removeSongFromPlaylist(playlist, song)
-                            }
-                        },
-                        onMoreClick = { 
-                            // Handle move up/down actions
-                            currentPlaylist?.let { playlist ->
-                                val currentIndex = playlistSongs.indexOf(song)
-                                if (currentIndex > 0) {
-                                    viewModel.moveSongUp(playlist, song)
-                                } else if (currentIndex < playlistSongs.size - 1) {
-                                    viewModel.moveSongDown(playlist, song)
+                    if (isReorderMode) {
+                        ReorderablePlaylistItem(
+                            song = song,
+                            onMoveUp = {
+                                val idx = reorderWorkingList.indexOf(song)
+                                if (idx > 0) {
+                                    val copy = reorderWorkingList.toMutableList()
+                                    java.util.Collections.swap(copy, idx, idx - 1)
+                                    reorderWorkingList = copy
+                                }
+                            },
+                            onMoveDown = {
+                                val idx = reorderWorkingList.indexOf(song)
+                                if (idx >= 0 && idx < reorderWorkingList.size - 1) {
+                                    val copy = reorderWorkingList.toMutableList()
+                                    java.util.Collections.swap(copy, idx, idx + 1)
+                                    reorderWorkingList = copy
+                                }
+                            },
+                            onDragStepUp = {
+                                val idx = reorderWorkingList.indexOf(song)
+                                if (idx > 0) {
+                                    val copy = reorderWorkingList.toMutableList()
+                                    java.util.Collections.swap(copy, idx, idx - 1)
+                                    reorderWorkingList = copy
+                                }
+                            },
+                            onDragStepDown = {
+                                val idx = reorderWorkingList.indexOf(song)
+                                if (idx >= 0 && idx < reorderWorkingList.size - 1) {
+                                    val copy = reorderWorkingList.toMutableList()
+                                    java.util.Collections.swap(copy, idx, idx + 1)
+                                    reorderWorkingList = copy
                                 }
                             }
-                        }
-                    )
+                        )
+                    } else {
+                        PlaylistSongItem(
+                            song = song,
+                            onSongClick = { 
+                                musicPlayerViewModel.playSong(song, customPlaylist = playlistSongs)
+                            },
+                            onRemoveFromPlaylist = {
+                                currentPlaylist?.let { playlist ->
+                                    viewModel.removeSongFromPlaylist(playlist, song)
+                                }
+                            },
+                            onMoreClick = { 
+                                // Handle move up/down actions
+                                currentPlaylist?.let { playlist ->
+                                    val currentIndex = playlistSongs.indexOf(song)
+                                    if (currentIndex > 0) {
+                                        viewModel.moveSongUp(playlist, song)
+                                    } else if (currentIndex < playlistSongs.size - 1) {
+                                        viewModel.moveSongDown(playlist, song)
+                                    }
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -422,6 +506,95 @@ fun PlaylistSongItem(
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = "More options"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ReorderablePlaylistItem(
+    song: Song,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onDragStepUp: () -> Unit,
+    onDragStepDown: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val threshold = with(LocalDensity.current) { 40.dp.toPx() }
+    var isDragging by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(targetValue = if (isDragging) 0.98f else 1f, animationSpec = tween(120), label = "drag-scale")
+    ExpressiveCard(
+        onClick = {},
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer(scaleX = scale, scaleY = scale)
+            .pointerInput(Unit) {
+                var accumulated = 0f
+                detectDragGestures(
+                    onDragStart = { isDragging = true },
+                    onDrag = { _, dragAmount: Offset ->
+                        accumulated += dragAmount.y
+                        if (accumulated <= -threshold) {
+                            onDragStepUp()
+                            accumulated = 0f
+                        } else if (accumulated >= threshold) {
+                            onDragStepDown()
+                            accumulated = 0f
+                        }
+                    },
+                    onDragEnd = { accumulated = 0f; isDragging = false },
+                    onDragCancel = { accumulated = 0f; isDragging = false }
+                )
+            }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(MaterialTheme.shapes.medium),
+                tonalElevation = 2.dp
+            ) {
+                AlbumArtImage(
+                    filePath = song.path,
+                    contentDescription = "Album Art for ${song.title}"
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = song.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${song.artist} • ${song.album}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ExpressiveIconButton(onClick = onMoveUp) {
+                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up")
+                }
+                ExpressiveIconButton(onClick = onMoveDown) {
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move down")
+                }
+                Icon(
+                    imageVector = Icons.Default.DragIndicator,
+                    contentDescription = "Drag",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -676,16 +849,8 @@ fun PlaylistSongItem(
                 
                 Spacer(modifier = Modifier.width(8.dp))
                 
-                // Drag handle
-                Icon(
-                    imageVector = Icons.Default.DragIndicator,
-                    contentDescription = "Drag to reorder",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-                
                 Spacer(modifier = Modifier.width(8.dp))
-                
+
                 Box {
                     IconButton(onClick = { showSongMenu = true }) {
                         Icon(Icons.Default.MoreVert, "More")
@@ -750,16 +915,7 @@ fun PlaylistSongItem(
                             }
                         )
                         
-                        DropdownMenuItem(
-                            text = { Text("Drag to Reorder") },
-                            onClick = {
-                                showSongMenu = false
-                                onMoreClick() // This will be handled by the parent
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.DragIndicator, contentDescription = null)
-                            }
-                        )
+                        
                     }
                 }
             }

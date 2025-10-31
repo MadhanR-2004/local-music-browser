@@ -82,10 +82,18 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
     fun renamePlaylist(playlist: Playlist, newName: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Note: This would need to be implemented in PlaylistDao
                 android.util.Log.d("PlaylistViewModel", "Renaming playlist: ${playlist.name} to $newName")
-                
-                // Reload playlists
+                playlistDao.updateName(playlist.id, newName)
+                // Optimistically update current state so UI reflects instantly
+                if (_currentPlaylist.value?.id == playlist.id) {
+                    val updated = Playlist().also {
+                        it.id = playlist.id
+                        it.name = newName
+                        it.description = playlist.description
+                        it.createdAtEpochMs = playlist.createdAtEpochMs
+                    }
+                    _currentPlaylist.value = updated
+                }
                 loadPlaylists()
             } catch (e: Exception) {
                 android.util.Log.e("PlaylistViewModel", "Error renaming playlist", e)
@@ -202,8 +210,18 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
                 
                 // Update description if provided
                 if (newDescription != null) {
-                    // Note: This would require adding an updateDescription method to PlaylistDao
-                    android.util.Log.d("PlaylistViewModel", "Updated playlist name to: $newName")
+                    playlistDao.updateDescription(playlist.id, newDescription)
+                }
+
+                // Optimistically update current playlist state
+                if (_currentPlaylist.value?.id == playlist.id) {
+                    val updated = Playlist().also {
+                        it.id = playlist.id
+                        it.name = newName
+                        it.description = newDescription ?: playlist.description
+                        it.createdAtEpochMs = playlist.createdAtEpochMs
+                    }
+                    _currentPlaylist.value = updated
                 }
                 
                 // Reload playlists
@@ -211,7 +229,7 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
                 
                 // Reload current playlist if it's the active one
                 if (_currentPlaylist.value?.id == playlist.id) {
-                    loadPlaylistSongs(playlist)
+                    loadPlaylistSongs(_currentPlaylist.value!!)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("PlaylistViewModel", "Error updating playlist", e)
@@ -246,8 +264,13 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 android.util.Log.d("PlaylistViewModel", "Moving song up: ${song.title}")
-                // TODO: Implement move up logic
-                // This would require updating the position in PlaylistSongCrossRef
+                val songs = playlistDao.getSongsInPlaylist(playlist.id)
+                val idx = songs.indexOfFirst { it.id == song.id }
+                if (idx > 0) {
+                    val swapped = songs.toMutableList()
+                    java.util.Collections.swap(swapped, idx, idx - 1)
+                    persistReorderedList(playlist, swapped)
+                }
             } catch (e: Exception) {
                 android.util.Log.e("PlaylistViewModel", "Error moving song up", e)
                 e.printStackTrace()
@@ -259,11 +282,32 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 android.util.Log.d("PlaylistViewModel", "Moving song down: ${song.title}")
-                // TODO: Implement move down logic
-                // This would require updating the position in PlaylistSongCrossRef
+                val songs = playlistDao.getSongsInPlaylist(playlist.id)
+                val idx = songs.indexOfFirst { it.id == song.id }
+                if (idx >= 0 && idx < songs.size - 1) {
+                    val swapped = songs.toMutableList()
+                    java.util.Collections.swap(swapped, idx, idx + 1)
+                    persistReorderedList(playlist, swapped)
+                }
             } catch (e: Exception) {
                 android.util.Log.e("PlaylistViewModel", "Error moving song down", e)
                 e.printStackTrace()
+            }
+        }
+    }
+
+    fun persistReorderedList(playlist: Playlist, songsInNewOrder: List<Song>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                songsInNewOrder.forEachIndexed { index, song ->
+                    playlistDao.updateSongPosition(playlist.id, song.id, index)
+                }
+                if (_currentPlaylist.value?.id == playlist.id) {
+                    // Reflect instantly in UI
+                    _currentPlaylistSongs.value = songsInNewOrder
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("PlaylistViewModel", "Error persisting reorder", e)
             }
         }
     }
